@@ -49,33 +49,21 @@ class ModeloLineal:
             
             if producto not in self.variables["Production"]:
                 self.variables["Production"][producto] = dict()
-            #if producto not in self.variables["Proximidad"]:
-            #    self.variables["Proximidad"][producto] = dict()
                 
             if num not in self.variables["Production"][producto]:
                 self.variables["Production"][producto][num] = dict()
-            #if num not in self.variables["Proximidad"][producto]:
-            #    self.variables["Proximidad"][producto][num] = dict()
             
             if paso not in self.variables["Production"][producto][num]:
                 self.variables["Production"][producto][num][paso] = dict()
-            #if paso not in self.variables["Proximidad"][producto][num]:
-            #    self.variables["Proximidad"][producto][num][paso] = dict()
             
             if task not in self.variables["Production"][producto][num][paso]:
                 self.variables["Production"][producto][num][paso][task] = dict()
-            #if task not in self.variables["Proximidad"][producto][num][paso]:
-            #    self.variables["Proximidad"][producto][num][paso][task] = dict()
             
             if task_mode not in self.variables["Production"][producto][num][paso][task]:
                 self.variables["Production"][producto][num][paso][task][task_mode] = dict()
-            #if task_mode not in self.variables["Proximidad"][producto][num][paso][task]:
-            #    self.variables["Proximidad"][producto][num][paso][task][task_mode] = dict()
             
             if maquina not in self.variables["Production"][producto][num][paso][task][task_mode]:
                 self.variables["Production"][producto][num][paso][task][task_mode][maquina] = dict()
-            #if maquina not in self.variables["Proximidad"][producto][num][paso][task][task_mode]:
-            #    self.variables["Proximidad"][producto][num][paso][task][task_mode][maquina] = dict()
             
             if intervalo not in self.variables["Production"][producto][num][paso][task][task_mode][maquina]:
                 self.variables["Production"][producto][num][paso][task][task_mode][maquina][intervalo] = dict()
@@ -86,11 +74,6 @@ class ModeloLineal:
                     vtype = gp.GRB.BINARY
                     , name =f"Production, [{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}][{periodo}]"
                 )
-                
-                #self.variables["Proximidad"][producto][num][paso][task][task_mode][maquina][intervalo][periodo] = self.modelo.addVar(
-                #    vtype = gp.GRB.BINARY
-                #    , name =f"Proximidad, [{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}][{periodo}]"
-                #)
     
     def crear_objetivos(self
             , weight_makespan : float = 1
@@ -223,6 +206,12 @@ class ModeloLineal:
         
         Crea las restricciones que limitan a lo maximo 1
         un intervalo del task_mode entre todas los periodos
+        
+        Las 3 restricciones 
+        * `restriccion_maquinas`
+        * `restriccion_Production`
+        * `restriccion_intervalos`
+        limitan los intervalos a cuales periodos pueden ser asignados
         """
         
         for producto, num, paso, task, task_mode, maquina, intervalo in self.datos.iterar_completo():
@@ -337,6 +326,12 @@ class ModeloLineal:
         
         Crea las restricciones que limitan que las maquinas
         solo puedan procesar una actividad a la vez en cada periodo
+        
+        Las 3 restricciones 
+        * `restriccion_maquinas`
+        * `restriccion_Production`
+        * `restriccion_intervalos`
+        limitan los intervalos a cuales periodos pueden ser asignados
         """
         
         #crea las restricciones para que las maquinas solo 
@@ -425,14 +420,46 @@ class ModeloLineal:
                                 , name = f"Produccion_Intervalo_lb, [{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]"
                             )
 
+    def restriccion_producto_terminado(self):
+        #no se si sera necesario
+        #seria parecido a restriccion_recetas y
+        #restriccion_production pero solo para el ultimo paso
+        #donde el ultimo intervalo tiene una suma de los binarios igual a 1
+        
+        pass
+
+    def crear_restricciones(self):
+        """
+        crear_restricciones - 
+        
+        Crea las restricciones necesarias del problema.
+        """
+        
+        self.restriccion_Makespan()
+        
+        self.restriccion_maquinas()
+        self.restriccion_Production()
+        self.restriccion_Recetas()
+        self.restriccion_intervalos()
+        self.restriccion_CambioTurno()
+        
+        self.restriccion_Energia()
+
+    def resolver(self):
+        """
+        resolver - 
+        
+        Busca la solución optima del problema.
+        """
+        
+        self.modelo.optimize()
 
 def main():
     ml = ModeloLineal()
     
-    #with open('result.json', "w") as fp:
-    #    json.dump(ml.variables, fp, indent=4)
-    #ml.restriccion_CambioTurno()
-    ml.restriccion_maquinas()
+    ml.crear_objetivos()
+    ml.crear_restricciones()
+    
     
 if __name__ == "__main__":
     main()
