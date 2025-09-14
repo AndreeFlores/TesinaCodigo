@@ -2,6 +2,7 @@ import json
 import os
 import numpy as np
 from typing import Any, Generator
+import re
 
 PATH_INPUT = os.path.join(os.path.dirname(os.path.realpath(__file__)),'Datos Tesina','Input_JSON_Schedule_Optimization.json')
 
@@ -41,8 +42,8 @@ class Datos:
     Clase que contiene los datos de la tesina
     """
     
-    def __init__(self):
-        datos = cargar_datos(PATH_INPUT)
+    def __init__(self, path = PATH_INPUT):
+        datos = cargar_datos(path)
         
         #crear diccionario de maquinas
         """
@@ -70,6 +71,12 @@ class Datos:
                 
                 #agregar actividades que se pueden procesar en cada maquina
                 self.machines[m] = i['task_modes']
+        
+        i = 0
+        self.machines_id : dict[str,int] = dict()
+        for maq in list(self.machines.keys()):
+            self.machines_id[maq] = i
+            i += 1
         
         #crear diccionario de actividades
         """
@@ -187,6 +194,8 @@ class Datos:
         for p in datos['products']:
             self.products[p['id']] = dict()
             self.products[p['id']]['tasks'] = dict()
+            self.products[p['id']]['request'] = 0
+            self.products[p['id']]['deadline'] = list()
             #print(p)
             
             i = 0 ##revisar order
@@ -195,7 +204,13 @@ class Datos:
                 i += 1
         
         for p in datos['product_requests']:
-            self.products[p['product']]['request'] = p['amount']
+            self.products[p['product']]['request'] += p['amount']
+            
+            if 'deadline' in p:
+                if isinstance(p['deadline'], int):
+                    self.products[p['product']]['deadline'].append(p['deadline'])
+                if isinstance(p['deadline'], list):
+                    self.products[p['product']]['deadline'].extend(p['deadline'])
         
         #crear diccionario de periodos
         """
@@ -326,7 +341,7 @@ class Datos:
                 y `len(tasks[task][task_mode]["power"]))-1` inclusivo
           
         """
-        
+
         for producto, v in self.products.items(): #iterar entre los productos
             for demanda in range(v['request']): #iterar en la cantidad de elementos requeridos para producit
                 receta = self.receta_producto(producto=producto) #receta del producto
@@ -384,6 +399,35 @@ class Datos:
         
         return self.tasks[task][task_mode]['power'][intervalo]
     
+    def obtener_task(self, task_mode : str) -> str:
+        """
+        obtener_task - 
+        
+        Se obtiene el `task` para el `task_mode` dado.
+        
+        Parameters
+        ----------
+        task_mode (str) :
+            nombre del `task_mode`
+        
+        Returns
+        -------
+        str :
+            nombre del `task`
+        
+        Raises
+        ------
+        ValueError :
+            Si no se encuentra el task que pertenece el task_mode
+        
+        """
+        
+        for t, task_mode_dict in self.tasks.items():
+            if task_mode in task_mode_dict:
+                return t 
+        else:
+            raise ValueError(f"{task_mode} no encontrado en un task")
+     
     def intervalos(self, task_mode : str) -> list[int]:
         """
         intervalos -
@@ -414,34 +458,160 @@ class Datos:
                 
                 return self.tasks[task][task_mode]['power']
     
+    def iterar_deadlines(self) -> Generator[tuple[str, int, int], Any, None]:
+        """
+        iterar_deadlines - 
+        
+        Itera todos los productos demandados que tienen un límite de tiempo.
+        
+        Yields
+        ------
+        Generator[tuple[str, int, int], Any, None] :
+            - Elemento 0 (str): nombre del `producto`
+            - Elemento 1 (int): `numero` de produccion de este producto, entre `0` y `demanda - 1` inclusivo
+            - Elemento 2 (int): el periodo limite de produccion.
+        
+        """
+        
+        for producto, v in self.products.items():
+            for demanda in range(len(v['deadline'])):
+                yield (producto, demanda, v['deadline'][demanda])
     
+def task_mode_a_str(
+        producto : str
+        , demanda : int
+        , task_mode : str
+        , intervalo : int
+        , paso : int
+        , sep : str = "|"
+    ) -> str:
+    """
+    task_mode_a_str - 
+    
+    Crea un valor str para la información dada del task_mode.
+    
+    Parameters
+    ----------
+    producto (str) :
+        Producto procesado.
+    
+    demanda (int) :
+        Número de demanda del producto.
+    
+    task_mode (str) :
+        task_mode del producto procesado.
+    
+    intervalo (int) :
+        Uno de los intervalos del task_mode.
+    
+    paso (int) :
+        Número de paso de la receta de producción.
+        
+    sep (str, optional, defaults to "|") :
+        Separador, que separa la información.
+    
+    Returns
+    -------
+    str :
+        El valor el cual contiene toda la información.
+    
+    """
+    return producto + sep + str(demanda) + sep + task_mode + sep + str(intervalo) + sep + str(paso)
+
+def str_a_task_mode(
+        info : str
+        , sep : str = "|"
+    )  -> tuple[str, int, str, int, int]:
+    """
+    str_a_task_mode - 
+    
+    Obtiene la información del task_mode guardada en el str.
+    
+    Parameters
+    ----------
+    info (str) :
+        El valor guardado.
+    
+    sep (str, optional, defaults to "|") :
+        El separador utilizado para guardar la información.
+    
+    Returns
+    -------
+    tuple[str, int, str, int, int] :
+        Tuple con los siguientes elementos:
+        * Producto
+        * Demanda
+        * task_mode
+        * intervalo
+        * paso
+    
+    """
+    
+    valores : list[Any] = re.split(sep, info)
+        
+    return str(valores[0]), int(valores[1]), str(valores[2]), int(valores[3]), int(valores[4])
+
+def str_a_energia(
+        info : str
+        , datos : Datos
+        , sep : str = "|"
+    ) -> float:
+    """
+    str_a_energia - 
+    
+    Lee la energia que se requiere para procesar el producto con la informacion `info` dada.
+    
+    Parameters
+    ----------
+    info (str) :
+        El valor guardado.
+    
+    datos (Datos) :
+        Una instancia de la clase Datos
+    
+    sep (str, optional, defaults to "|") :
+        El separador utilizado para guardar la información.
+    
+    Returns
+    -------
+    float :
+        La cantidad de energia utizada por el task_mode en el intervalo dado
+    
+    """
+    
+    _, _, task_mode, intervalo, _ = str_a_task_mode(
+        info=info
+        , sep = sep
+    )
+    
+    task = datos.obtener_task(
+        task_mode=task_mode
+    )
+    
+    energia = datos.energia_task_intervalo(
+        task = task
+        , task_mode = task_mode
+        , intervalo = intervalo
+    )
+    
+    return energia
 
 def main():
     # Cargar datos desde un archivo JSON específico
     archivo = PATH_INPUT
-    #print(f"Cargando datos desde: {archivo}")
+    print(f"Cargando datos desde: {archivo}")
     
     datos = cargar_datos(archivo)
-    #if datos is not None:
-    #    print("Datos cargados correctamente:")
-    #    print(datos)
-        
+    
     datos = Datos()
     
-    #print(datos.tasks)
+    print(datos.products)
     
-    print(datos.intervalos("Harden[1] TM2"))
+    for x in datos.iterar_productos():
+        print(x)
     
-    #a = [i for i in range(1,1152+1)]
-    #print(a)
-    
-    #print('WOVEN LABEL OURELA FABRIC')
-    #print(datos.receta_producto('WOVEN LABEL OURELA FABRIC'))
-    
-    #print("ELASTIC W/ INSCR")
-    #print(datos.receta_producto("ELASTIC W/ INSCR"))
-    
-    #datos.iterar()
+    for x in datos.iterar_deadlines():
+        print(x)
         
 if __name__ == "__main__":
     main()

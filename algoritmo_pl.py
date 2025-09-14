@@ -1,13 +1,18 @@
-from Carga_Datos import Datos
+from Carga_Datos import Datos, PATH_INPUT
 import gurobipy as gp
-import json
+import numpy as np
+import time
+from pathlib import Path
 
 class ModeloLineal:
     
     def __init__(self, delta = 0.0001):
         
         self.modelo = gp.Model("Scheduling")
-        self.datos = Datos()
+        self.modelo.setParam("LogFile", "lm_schedule.log")
+        self.modelo.Params.Threads = 8
+        
+        self.datos = Datos(str = PATH_INPUT)
         
         self.delta = delta #un numero pequeño
         
@@ -74,6 +79,17 @@ class ModeloLineal:
                     vtype = gp.GRB.BINARY
                     , name =f"Production, [{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}][{periodo}]"
                 )
+    
+        ###resultado:
+        i = 0
+        self.maquinas : dict[str,int] = dict()
+        for maq in list(self.datos.machines.keys()):
+            self.maquinas[maq] = i
+            i += 1
+        self.array_schedule = np.full(
+            shape = (len(self.maquinas.keys()), len(self.datos.periodos))
+            , fill_value = ""
+        )
     
     def crear_objetivos(self
             , weight_makespan : float = 1
@@ -254,12 +270,10 @@ class ModeloLineal:
                         for maquina in maquinas:
                             for periodo in periodos:
                                 binario_actual.add(
-                                    self.variables["Production"][producto][num][paso] \
-                                        [task_actual][task_mode][maquina][0][periodo]
+                                    self.variables["Production"][producto][num][paso][task_actual][task_mode][maquina][0][periodo]
                                 )
                                 periodo_actual.add(
-                                    self.variables["Production"][producto][num][paso] \
-                                        [task_actual][task_mode][maquina][0][periodo]
+                                    self.variables["Production"][producto][num][paso][task_actual][task_mode][maquina][0][periodo]
                                     , periodo
                                 )
                     
@@ -269,7 +283,7 @@ class ModeloLineal:
                     )
                     
                     self.modelo.addConstr(
-                        0 < periodo_actual 
+                        periodo_actual >= 0 + self.delta
                         , name = f"Production_periodo, [{producto}][{num}][{paso}]"
                     )
                     
@@ -280,7 +294,7 @@ class ModeloLineal:
                     for task_mode, maquinas in dict_task_modes_anterior.items():
                         ultimo_intervalo = len(
                             self.datos.intervalos(task_mode=task_mode)
-                        )
+                        ) - 1
                         
                         for maquina in maquinas:
                             for periodo in periodos:
@@ -289,7 +303,7 @@ class ModeloLineal:
                                 #        [task_anterior][task_mode][maquina][ultimo_intervalo][periodo]
                                 #)
                                 periodo_anterior.add(
-                                    self.variables["Production"][producto][num][paso] \
+                                    self.variables["Production"][producto][num][paso-1] \
                                         [task_anterior][task_mode][maquina][ultimo_intervalo][periodo]
                                     , periodo
                                 )
@@ -316,7 +330,7 @@ class ModeloLineal:
                     )
                     
                     self.modelo.addConstr(
-                        periodo_anterior < periodo_actual
+                        periodo_anterior <= periodo_actual - self.delta
                         , name = f"Production_periodo, [{producto}][{num}][{paso}]"
                     )                
 
@@ -421,12 +435,38 @@ class ModeloLineal:
                             )
 
     def restriccion_producto_terminado(self):
-        #no se si sera necesario
-        #seria parecido a restriccion_recetas y
-        #restriccion_production pero solo para el ultimo paso
-        #donde el ultimo intervalo tiene una suma de los binarios igual a 1
+        """
+        restriccion_producto_terminado - 
         
-        pass
+        Crea las restricciones para los productos que tienen un límite de tiempo en su produccion o "deadline"
+        """
+        
+        #deadline
+        for producto, num, periodo_demanda in self.datos.iterar_deadlines():
+            expresion = gp.LinExpr()
+            
+            receta = self.datos.receta_producto(producto=producto)
+            paso = len(receta)
+            task, dict_task_modes , _= receta[- 1]
+            for task_mode, maquinas in dict_task_modes.items():
+                intervalos = self.datos.intervalos(task_mode=task_mode)
+                cantidad_intervalos = len(intervalos)
+                for maquina in maquinas:
+                    for periodo in self.datos.periodos:
+
+                        if periodo <= periodo_demanda:
+                            expresion.add(
+                                self.variables["Production"][producto][num][paso] \
+                                [task][task_mode][maquina][cantidad_intervalos][periodo]
+                                , periodo
+                            )
+                        else:
+                            break
+        
+            self.modelo.addConstr(
+                expresion <= periodo_demanda
+                , name = f"deadline_producto, [{producto}][{num}]"
+            )
 
     def crear_restricciones(self):
         """
@@ -442,6 +482,7 @@ class ModeloLineal:
         self.restriccion_Recetas()
         self.restriccion_intervalos()
         self.restriccion_CambioTurno()
+        self.restriccion_producto_terminado()
         
         self.restriccion_Energia()
 
@@ -453,13 +494,40 @@ class ModeloLineal:
         """
         
         self.modelo.optimize()
+    
+    def resultado(self, path : Path):
+        archivo = open(path,"w")
+        
+        for producto, num, paso, task, task_mode, maquina, intervalo in self.datos.iterar_completo():
+            for periodo in self.datos.periodos:
+                
+                var : gp.Var = self.variables["Production"][producto][num][paso][task][task_mode][maquina][intervalo][periodo]
+                #print(f"{var.VarName} = {var.X}")
+                archivo.write(f"{var.VarName},{var.X}"+"\n")
+        
+        archivo.close()
 
 def main():
     ml = ModeloLineal()
-    
+    start = time.time()
+    print("Creando objetivos")
     ml.crear_objetivos()
+    print(f"Tiempo en crear objetivos: {time.time() - start:.2f} segundos")
+
+    start = time.time()
+    print("Creando restricciones")
     ml.crear_restricciones()
-    
+    print(f"Tiempo en crear restricciones: {time.time() - start:.2f} segundos")
+
+    start = time.time()
+    print("Resolviendo problema lineal")
+    ml.resolver()
+    print(f"Tiempo en resolver problema lineal: {time.time() - start:.2f} segundos")
+
+    start = time.time()
+    print("Resultado")
+    ml.resultado()
+    print(f"Tiempo en mostrar resultado: {time.time() - start:.2f} segundos")
     
 if __name__ == "__main__":
     main()
