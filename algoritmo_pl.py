@@ -12,7 +12,7 @@ class ModeloLineal:
         self.modelo.setParam("LogFile", "lm_schedule.log")
         self.modelo.Params.Threads = 8
         
-        self.datos = Datos(str = PATH_INPUT)
+        self.datos = Datos(path = PATH_INPUT)
         
         self.delta = delta #un numero pequeño
         
