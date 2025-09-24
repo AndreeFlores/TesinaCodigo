@@ -111,7 +111,11 @@ class Datos:
                 if tm['id'] in task_modes:
                     self.tasks[task][tm['id']] = dict()
                     self.tasks[task][tm['id']]['power'] = tm['power']
-    
+
+                    for machine, task_modes_machine in self.machines.items():
+                        if tm['id'] in task_modes_machine:
+                            self.tasks[task][tm['id']]['machine'] = machine
+        
         #crear diccionario de energia
         """
         self.energy : {
@@ -433,7 +437,7 @@ class Datos:
         intervalos -
         
         Regresa una lista de los intervalos para completar el `task_mode`
-        dado.
+        dado. Donde los valores son la energía utilizada.
         
         Parameters
         ----------
@@ -476,6 +480,36 @@ class Datos:
         for producto, v in self.products.items():
             for demanda in range(len(v['deadline'])):
                 yield (producto, demanda, v['deadline'][demanda])
+    
+    def obtener_task_mode(self, task : str, maquina : str) -> str | None:
+        """
+        obtener_task_mode - 
+        
+        Calcula el `task_mode` disponible para la `maquina` y `task` dados.
+        
+        Parameters
+        ----------
+        task (str) :
+            Actividad que realiza la maquina.
+        
+        maquina (str) :
+            Maquina que realizará el task.
+        
+        Returns
+        -------
+        str | None :
+            * str con el task_mode disponible.
+            * `None` si no es posible realizar el task en esa maquina.
+        
+        """
+        
+        resultado = None
+        
+        for key, value in self.tasks[task].items():
+            if maquina == value["machine"]:
+                return key
+            
+        return resultado
     
 def task_mode_a_str(
         producto : str
@@ -547,8 +581,8 @@ def str_a_task_mode(
     
     """
     
-    valores : list[Any] = re.split(sep, info)
-        
+    valores : list[str] = info.split(sep=sep)
+    
     return str(valores[0]), int(valores[1]), str(valores[2]), int(valores[3]), int(valores[4])
 
 def str_a_energia(
