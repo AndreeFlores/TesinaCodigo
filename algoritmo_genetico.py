@@ -2,7 +2,7 @@ from Carga_Datos import Datos, PATH_INPUT, task_mode_a_str, str_a_task_mode
 import numpy as np
 from typing import Any, Literal
 import random as rand
-from graficas import task_array_to_dataframe, grafica_gantt
+from graficas import task_array_to_dataframe, grafica_gantt_plt
 
 class Individuo:
     
@@ -1625,16 +1625,20 @@ class IndividuoA(Individuo):
             self
         ):
         
-        df = task_array_to_dataframe(array=self.cromosoma)
-        
-        grafica_gantt(df=df)
+        df = task_array_to_dataframe(
+            array=self.cromosoma
+        )
+        grafica_gantt_plt(
+            df=df
+            , time_leaps=self.cambio_turno
+        )
 
     
 def main():
     individuo = IndividuoA()
     #individuo.inicializar()
-    print("cromosoma",individuo.cromosoma)
-    print("aptitud", individuo.aptitud())
+    #print("cromosoma",individuo.cromosoma)
+    #print("aptitud", individuo.aptitud())
     
     individuo.grafica_gantt()
     
