@@ -1,7 +1,17 @@
 import numpy as np
 import pandas as pd
 from Carga_Datos import Datos, str_a_task_mode
+from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+
+CUSTOM_COLOR_MAP = ListedColormap(
+    [
+        "#CF01FB", "#B100D7", "#9400B4", "#770092", "#5B0070",
+        "#B57D00", "#9A6A00", "#815700", "#674500", "#4F3400",
+        "#009C9F", "#008588", "#006F71", "#00595A", "#004344"
+    ]
+)
 
 def task_array_to_dataframe(
         array : np.ndarray
@@ -65,34 +75,125 @@ def task_array_to_dataframe(
 def grafica_gantt_plt(
         df : pd.DataFrame
         , time_leaps : list[int]
+        , min_value_x : int
+        , max_value_x : int
+        , costo_energia : float = None
+        , makespan : int = None
     ):
 
     fig, ax = plt.subplots(figsize=(10, 5))
     
-    # Define a color map for task_mode values
     task_modes = df["task_mode"].unique()
-    colors = plt.cm.get_cmap("tab10", len(task_modes))
-    color_dict = {mode: colors(i) for i, mode in enumerate(task_modes)}
+    
+    # color map para los task mode
+    color_dict = {
+        #MAQ118
+        "Ironing TM4" : CUSTOM_COLOR_MAP(0)
+        , "Harden[2] TM1" : CUSTOM_COLOR_MAP(1)
+        , "Harden[1.5] TM3" : CUSTOM_COLOR_MAP(2)
+        , "Harden[0.5] TM4" : CUSTOM_COLOR_MAP(3)
+        , "Harden[1] TM5" : CUSTOM_COLOR_MAP(4)
+        #MAQ119
+        , "Harden[1] TM1" : CUSTOM_COLOR_MAP(5)
+        , "Ironing TM3" : CUSTOM_COLOR_MAP(6)
+        , "Harden[0.5] TM1" : CUSTOM_COLOR_MAP(7)
+        , "Harden[1.5] TM1" : CUSTOM_COLOR_MAP(8)
+        #MAQ120
+        ,"Ironing TM1" : CUSTOM_COLOR_MAP(10)
+        ,"Anti-Shrinkage TM2" : CUSTOM_COLOR_MAP(12)
+        ,"Sublimation TM3" : CUSTOM_COLOR_MAP(14)
+    }
     
     # Plot each task as a horizontal bar
-    for index, row in df.iterrows():
+    bars = []
+    activities = []
+    for _, row in df.iterrows():
         start = row['Start']
-        end = row['End']
         duration = row["delta"]
         machine = row["Maquina"]
         color = color_dict.get(row["task_mode"], "gray")
-        ax.barh(machine, duration, left=start, height=0.5, color=color)
+        bar = ax.barh(machine, duration, left=start, height=0.5, color=color)
+        bars.append(bar[0])
+        activities.append(row["Activity"])
 
-    # Plot each time leap
+    # Linea vertical para cada time leap
     for tl in time_leaps:
         ax.axvline(x = tl, color="k", linestyle=":")
 
-    # Customize the plot
+    # Leyenda para los task mode
+    legend_handles = [
+        Patch(color=color_dict[mode], label=str(mode)) for mode in task_modes
+    ]
+    legend = ax.legend(
+        handles=legend_handles
+        , title="task_mode"
+        , loc = "center left"
+        , bbox_to_anchor=(1, 0.5)
+    )
+    legend.set_zorder(2.5)
+    
+    # custom labels
     ax.set_xlabel("Periodo")
+    ax.set_xticks(ticks=time_leaps)
+    ax.set_xlim(
+        left=min_value_x
+        ,right=max_value_x
+    )
+    
     ax.set_ylabel("Máquina")
-    ax.set_title("Gantt Chart with Integer X-axis")
+    fig.suptitle(
+        "Gráfica Gantt de tasks"
+    )
+    subtitulo = "Etiqueta: Maquina|Producto|Demanda|task_mode|paso"
+    
+    if makespan is not None:
+        subtitulo = subtitulo + f"\nmakespan: {makespan}"
+    
+    if costo_energia is not None:
+        subtitulo = subtitulo + f"\nCosto de energía: {costo_energia:.2f}"
+    
+    ax.set_title(
+        subtitulo
+        , loc="left"
+    )
     ax.invert_yaxis() # To display tasks from top to bottom
     
-    #ax.grid(True, linestyle='--', alpha=0.7)
+    # hover information
+    annot = ax.annotate(
+        "", xy=(0,0), xytext=(-20,20),textcoords="offset points",
+        bbox=dict(boxstyle="round", fc="w"),
+        arrowprops=dict(arrowstyle="->")
+    )
+    annot.set_visible(False)
+    
+    def update_annot(bar, activity):
+        x = bar.get_x() + bar.get_width()/2
+        y = bar.get_y() + bar.get_height()/2
+        annot.xy = (x, y)
+        annot.set_text(activity)
+        color = {
+            0 : "#CF01FB"
+            , 1:"#B57D00"
+            , 2:"#009C9F"
+        }
+        #annot.get_bbox_patch().set_facecolor(bar.get_facecolor())
+        annot.get_bbox_patch().set_facecolor(color[y])
+    
+    def hover(event):
+        vis = annot.get_visible()
+        if event.inaxes == ax:
+            for bar, activity in zip(bars, activities):
+                cont, _ = bar.contains(event)
+                if cont:
+                    update_annot(bar, activity)
+                    annot.set_visible(True)
+                    fig.canvas.draw_idle()
+                    return
+        if vis:
+            annot.set_visible(False)
+            fig.canvas.draw_idle()
 
+    fig.canvas.mpl_connect("motion_notify_event", hover)
+
+    plt.tight_layout()
     plt.show()

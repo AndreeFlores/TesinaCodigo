@@ -292,6 +292,7 @@ class Individuo:
     
     def __energia_precio(self
             , array : np.ndarray = None
+            , save : bool = True
         ) -> float:
         """
         __energia_precio - 
@@ -313,11 +314,37 @@ class Individuo:
         if array is None:
             array = self.cromosoma
 
+        if save:
+            np.savetxt(
+                "cromosoma.csv", array, delimiter=",", fmt="%s"
+                , encoding="utf-8"
+            )
+
         energia_utilizada : np.ndarray = np.array(
             [[self.__gen_a_energia_utilizada(i) for i in row] for row in array]
         ).sum(axis=0)
         
+        if save:
+            np.savetxt(
+                "energia_utilizada.csv", energia_utilizada, delimiter=","
+            )
+        
+        if save:
+            np.savetxt(
+                "energia_solar_cantidad.csv", self.energia_solar_cantidad, delimiter=","
+            )
+        
         energia_socket = np.maximum(energia_utilizada - self.energia_solar_cantidad, 0)
+        
+        if save:
+            np.savetxt(
+                "energia_socket.csv", energia_socket, delimiter=","
+            )
+        
+        if save:
+            np.savetxt(
+                "energia_socket_precio.csv", self.energia_socket_precio, delimiter=","
+            )
         
         return np.dot(energia_socket, self.energia_socket_precio)
 
@@ -1371,15 +1398,21 @@ class Individuo:
         
         raise NotImplementedError()
 
-
 class IndividuoA(Individuo):
     
-    def __init__(self):
+    def __init__(
+            self
+            , inicializar : bool = False
+        ):
         super().__init__()
         
         es_viable = False
-        while not es_viable:
-            self.inicializar()
+        while (not es_viable) and inicializar:
+            self.inicializar(
+                probabilidad_saltar_periodo=0.33
+                , peso_seleccion_paso=1.5
+                , peso_seleccion_demanda=3
+            )
             es_viable : bool = self.es_viable()["todo"]["bool"]
             
     def inicializar(
@@ -1621,21 +1654,43 @@ class IndividuoA(Individuo):
         
         pass
 
+    def cruce(
+            self
+            , padre : "IndividuoA"
+        ) -> "IndividuoA":
+    
+        pass
+
     def grafica_gantt(
             self
         ):
+        """
+        grafica_gantt - 
         
+        Crea una gráfica Gantt del scheduling (self.cromosoma)
+        del individuo.
+        """
         df = task_array_to_dataframe(
             array=self.cromosoma
         )
+        
+        makespan : int = self._Individuo__makespan()
+        energia : float = self._Individuo__energia_precio()
+        
         grafica_gantt_plt(
             df=df
             , time_leaps=self.cambio_turno
+            , min_value_x=min(self.periodos)-1 
+            , max_value_x=max(self.periodos)+1
+            , costo_energia= energia
+            , makespan=makespan
         )
 
     
 def main():
-    individuo = IndividuoA()
+    individuo = IndividuoA(
+        inicializar=True
+    )
     #individuo.inicializar()
     #print("cromosoma",individuo.cromosoma)
     #print("aptitud", individuo.aptitud())
