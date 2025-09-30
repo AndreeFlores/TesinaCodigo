@@ -1674,6 +1674,11 @@ class IndividuoA(Individuo):
             array=self.cromosoma
         )
         
+        df.to_csv( #TODO modificar para que sea opcion
+            "dataframe.csv"
+            , index=False
+        )
+        
         makespan : int = self._Individuo__makespan()
         energia : float = self._Individuo__energia_precio()
         
