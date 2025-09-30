@@ -526,7 +526,9 @@ def main():
 
     start = time.time()
     print("Resultado")
-    ml.resultado()
+    ml.resultado(
+        path="Resultado pl.txt"
+    )
     print(f"Tiempo en mostrar resultado: {time.time() - start:.2f} segundos")
     
 if __name__ == "__main__":

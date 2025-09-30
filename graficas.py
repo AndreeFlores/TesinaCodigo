@@ -4,6 +4,7 @@ from Carga_Datos import Datos, str_a_task_mode
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
+from pathlib import Path
 
 CUSTOM_COLOR_MAP = ListedColormap(
     [
@@ -79,6 +80,7 @@ def grafica_gantt_plt(
         , max_value_x : int
         , costo_energia : float = None
         , makespan : int = None
+        , save_path : str | Path = None
     ):
 
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -195,5 +197,10 @@ def grafica_gantt_plt(
 
     fig.canvas.mpl_connect("motion_notify_event", hover)
 
+    if save_path is not None:
+        fig.savefig(
+            fname=save_path
+        )
+    
     plt.tight_layout()
     plt.show()
