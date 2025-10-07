@@ -11,6 +11,7 @@ class ModeloLineal:
         self.modelo = gp.Model("Scheduling")
         self.modelo.setParam("LogFile", "lm_schedule.log")
         self.modelo.Params.Threads = 8
+        self.modelo.Params.TimeLimit = 5000 #segundos
         
         self.datos = Datos(path = PATH_INPUT)
         
@@ -446,11 +447,11 @@ class ModeloLineal:
             expresion = gp.LinExpr()
             
             receta = self.datos.receta_producto(producto=producto)
-            paso = len(receta)
+            paso = len(receta) - 1
             task, dict_task_modes , _= receta[- 1]
             for task_mode, maquinas in dict_task_modes.items():
                 intervalos = self.datos.intervalos(task_mode=task_mode)
-                cantidad_intervalos = len(intervalos)
+                cantidad_intervalos = len(intervalos) - 1
                 for maquina in maquinas:
                     for periodo in self.datos.periodos:
 
@@ -492,8 +493,15 @@ class ModeloLineal:
         
         Busca la solución optima del problema.
         """
-        
         self.modelo.optimize()
+        self.modelo.write("out.sol")
+        
+        for _ in range(5):
+            self.modelo.read("out.sol")
+            
+            self.modelo.optimize()
+            self.modelo.write("out.sol")
+
     
     def resultado(self, path : Path):
         archivo = open(path,"w")
@@ -506,6 +514,7 @@ class ModeloLineal:
                 archivo.write(f"{var.VarName},{var.X}"+"\n")
         
         archivo.close()
+        
 
 def main():
     ml = ModeloLineal()

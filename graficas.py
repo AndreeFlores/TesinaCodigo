@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from Carga_Datos import Datos, str_a_task_mode
+from Carga_Datos import Datos, str_a_task_mode, task_mode_a_str
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
@@ -72,6 +72,49 @@ def task_array_to_dataframe(
     df["Activity"] = df[["Maquina","Producto","Demanda","task_mode","paso"]].agg('|'.join, axis=1)
     
     return df
+
+def dataframe_to_array(
+        df : pd.DataFrame
+        , dict_maquinas : dict[str, int]
+        , periodos : int
+    ) -> np.ndarray[tuple[int, int], str]:
+    
+    if periodos <= 0:
+        raise ValueError("Cantidad de periodos no válida")
+    
+    if not set(["Maquina", "Start","Producto","Demanda","task_mode","paso"]).issubset(df.columns):
+        raise ValueError('Las columnas de df deben ser: ["Maquina", "Start","Producto","Demanda","task_mode","paso"]')
+    
+    datos = Datos()
+    
+    array = np.full(
+        shape = (len(dict_maquinas.keys()), periodos),
+        fill_value = "",
+        dtype = 'object'
+    )
+    
+    for _, row in df.iterrows():
+        maquina = row["Maquina"]
+        periodo = row["Start"]
+        producto = row["Producto"]
+        demanda = row["Demanda"]
+        task_mode = row["task_mode"]
+        paso = row["paso"]
+        
+        intervalos = datos.intervalos(task_mode=task_mode)
+        
+        for i in range(len(intervalos)):
+            valor = task_mode_a_str(
+                producto=producto
+                , demanda=demanda
+                , task_mode=task_mode
+                , intervalo=i
+                , paso=paso
+            )
+            
+            array[dict_maquinas[maquina], periodo + i - 1] = valor
+    
+    return array
 
 def grafica_gantt_plt(
         df : pd.DataFrame
