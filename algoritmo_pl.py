@@ -3,15 +3,13 @@ import gurobipy as gp
 import numpy as np
 import time
 from pathlib import Path
+import os
 
 class ModeloLineal:
     
     def __init__(self, delta = 0.0001):
         
         self.modelo = gp.Model("Scheduling")
-        self.modelo.setParam("LogFile", "lm_schedule.log")
-        self.modelo.Params.Threads = 8
-        self.modelo.Params.TimeLimit = 5000 #segundos
         
         self.datos = Datos(path = PATH_INPUT)
         
@@ -38,12 +36,12 @@ class ModeloLineal:
                     lb = 0
                     , ub = datos_energia_periodo["Solar"]["amount"]
                     , vtype = gp.GRB.CONTINUOUS
-                    , name = f"Amount of solar energy in t = {periodo}"
+                    , name = f"Amount_of_solar_energy_in_t_=_{periodo}"
                 )
                 , "Socket" : self.modelo.addVar(
                     lb = 0
                     , vtype = gp.GRB.CONTINUOUS
-                    , name = f"Amount of socket energy in t = {periodo}"
+                    , name = f"Amount_of_socket_energy_in_t_=_{periodo}"
                 )
             }
         
@@ -78,7 +76,7 @@ class ModeloLineal:
                 
                 self.variables["Production"][producto][num][paso][task][task_mode][maquina][intervalo][periodo] = self.modelo.addVar(
                     vtype = gp.GRB.BINARY
-                    , name =f"Production, [{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}][{periodo}]"
+                    , name =f"Production_[{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}][{periodo}]".replace(" ","_")
                 )
     
         ###resultado:
@@ -121,7 +119,7 @@ class ModeloLineal:
             expr = self.variables["Makespan"]
             , index = 0
             , weight = weight_makespan
-            , name = f"Periodo final"
+            , name = f"Periodo_final"
         )
         
         #Energy
@@ -137,7 +135,7 @@ class ModeloLineal:
             expr = expresion
             , index = 1
             , weight = weight_energy
-            , name = f"Costo de Energia"
+            , name = f"Costo_de_Energia"
         )
         
         self.modelo.ModelSense = sense
@@ -154,7 +152,7 @@ class ModeloLineal:
         
                 self.modelo.addConstr(
                     periodo * self.variables["Production"][producto][num][paso][task][task_mode][maquina][intervalo][periodo] <= self.variables["Makespan"]
-                    , name = f"Makespan, [{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}][{periodo}]"
+                    , name = f"Makespan_[{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}][{periodo}]".replace(" ","_")
                 )
     
     def restriccion_Energia(self):
@@ -179,7 +177,7 @@ class ModeloLineal:
             self.modelo.addConstr(
                 self.variables["Energy"][periodo]["Solar"] + self.variables["Energy"][periodo]["Socket"] ==
                 gp.quicksum(lista_variables)
-                , name = f"Uso de Energia, {periodo}"
+                , name = f"Uso_de_Energia_{periodo}"
             )
     
     def restriccion_CambioTurno(self):
@@ -241,7 +239,7 @@ class ModeloLineal:
             
             self.modelo.addConstr(
                 expresion <= 1
-                , name = f"Production_intervalo, [{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]"
+                , name = f"Production_intervalo_[{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]".replace(" ","_")
             )
 
     def restriccion_Recetas(self):
@@ -280,12 +278,12 @@ class ModeloLineal:
                     
                     self.modelo.addConstr(
                         binario_actual == 1
-                        , name = f"Production_binario, [{producto}][{num}][{paso}]"
+                        , name = f"Production_binario_[{producto}][{num}][{paso}]".replace(" ","_")
                     )
                     
                     self.modelo.addConstr(
                         periodo_actual >= 0 + self.delta
-                        , name = f"Production_periodo, [{producto}][{num}][{paso}]"
+                        , name = f"Production_periodo_[{producto}][{num}][{paso}]".replace(" ","_")
                     )
                     
                 else:
@@ -327,12 +325,12 @@ class ModeloLineal:
                     
                     self.modelo.addConstr(
                         binario_actual == 1
-                        , name = f"Production_binario, [{producto}][{num}][{paso}]"
+                        , name = f"Production_binario_[{producto}][{num}][{paso}]".replace(" ","_")
                     )
                     
                     self.modelo.addConstr(
                         periodo_anterior <= periodo_actual - self.delta
-                        , name = f"Production_periodo, [{producto}][{num}][{paso}]"
+                        , name = f"Production_periodo_[{producto}][{num}][{paso}]".replace(" ","_")
                     )                
 
     def restriccion_maquinas(self):
@@ -370,7 +368,7 @@ class ModeloLineal:
         for key, value in dict_maquinas.items():
             self.modelo.addConstr(
                 value <= 1
-                , name = f"Maquina_activa, [{key[0]}][{key[1]}]"
+                , name = f"Maquina_activa_[{key[0]}][{key[1]}]".replace(" ","_")
             )
 
     def restriccion_intervalos(self):
@@ -427,12 +425,12 @@ class ModeloLineal:
                                 
                             self.modelo.addConstr(
                                 periodo_actual - periodo_anterior <= 1
-                                , name = f"Produccion_Intervalo_ub, [{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]"
+                                , name = f"Produccion_Intervalo_ub_[{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]".replace(" ","_")
                             )
                             
                             self.modelo.addConstr(
                                 0 <= periodo_actual - periodo_anterior
-                                , name = f"Produccion_Intervalo_lb, [{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]"
+                                , name = f"Produccion_Intervalo_lb_[{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]".replace(" ","_")
                             )
 
     def restriccion_producto_terminado(self):
@@ -466,7 +464,7 @@ class ModeloLineal:
         
             self.modelo.addConstr(
                 expresion <= periodo_demanda
-                , name = f"deadline_producto, [{producto}][{num}]"
+                , name = f"deadline_producto_[{producto}][{num}]".replace(" ","_")
             )
 
     def crear_restricciones(self):
@@ -487,21 +485,45 @@ class ModeloLineal:
         
         self.restriccion_Energia()
 
-    def resolver(self):
+    def resolver(self, write_file : str | Path = "out.sol"):
         """
         resolver - 
         
         Busca la solución optima del problema.
         """
-        self.modelo.optimize()
-        self.modelo.write("out.sol")
+        self.modelo.setParam("LogFile", "lm_schedule.log")
+        self.modelo.Params.Threads = 12
+        self.modelo.Params.NodefileStart = 0.5
         
-        for _ in range(5):
-            self.modelo.read("out.sol")
+        if os.path.exists(write_file):
+            self.modelo.Params.TimeLimit = 60*60*1 #segundos
+            self.modelo.params.MIPFocus = 3 #mejorar bound del objetivo
+            self.modelo.params.Heuristics = 0.05 #heuristicas, valores mas grandes producen mas y mejores soluciones factibles
+            self.modelo.params.MIPGap = 1e-4 #valor default
+            self.modelo.Params.CutPasses = -1
+            self.modelo.Params.Cuts = -1
+            self.modelo.Params.Disconnected = -1
+            #self.modelo.Params.ImproveStartTime = 60*60
             
-            self.modelo.optimize()
-            self.modelo.write("out.sol")
+            self.modelo.read(write_file)
 
+            self.modelo.optimize()
+            self.modelo.write(write_file)
+        else:
+            #self.modelo.Params.TimeLimit = 60*60*10 #segundos
+            self.modelo.Params.PreSparsify = 1
+            self.modelo.params.MIPFocus = 1 #buscar soluciones rapidamente
+            self.modelo.params.Heuristics = 0.50 #heuristicas, valores mas grandes producen mas y mejores soluciones factibles
+            self.modelo.params.MIPGap = 1 #valor alto para que termine lo mas rapido posible
+            self.modelo.Params.CutPasses = 10
+            self.modelo.Params.Cuts = 2
+            self.modelo.Params.Disconnected = 1
+            #self.modelo.Params.ImproveStartTime = 600
+           
+            self.modelo.optimize()
+            if self.modelo.SolCount == 0:
+                raise NotImplementedError("No existe una solucion")
+            self.modelo.write(write_file)
     
     def resultado(self, path : Path):
         archivo = open(path,"w")
@@ -527,10 +549,14 @@ def main():
     print("Creando restricciones")
     ml.crear_restricciones()
     print(f"Tiempo en crear restricciones: {time.time() - start:.2f} segundos")
+    
+    if not os.path.exists("modelo.lp"):
+        ml.modelo.write("modelo.lp")
 
     start = time.time()
     print("Resolviendo problema lineal")
-    ml.resolver()
+    for _ in range(5):
+        ml.resolver()
     print(f"Tiempo en resolver problema lineal: {time.time() - start:.2f} segundos")
 
     start = time.time()
