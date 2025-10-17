@@ -538,7 +538,7 @@ class ModeloLineal:
         archivo.close()
         
 
-def main():
+def main(guardar_modelo : bool = False):
     ml = ModeloLineal()
     start = time.time()
     print("Creando objetivos")
@@ -550,7 +550,7 @@ def main():
     ml.crear_restricciones()
     print(f"Tiempo en crear restricciones: {time.time() - start:.2f} segundos")
     
-    if not os.path.exists("modelo.lp"):
+    if (not os.path.exists("modelo.lp")) and (guardar_modelo):
         ml.modelo.write("modelo.lp")
 
     start = time.time()

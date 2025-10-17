@@ -4,7 +4,6 @@ from Carga_Datos import Datos, str_a_task_mode, task_mode_a_str
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
-from pathlib import Path
 
 CUSTOM_COLOR_MAP = ListedColormap(
     [
@@ -93,9 +92,9 @@ def dataframe_to_array(
         dtype = 'object'
     )
     
-    for _, row in df.iterrows():
+    for idx, row in df.iterrows():
         maquina = row["Maquina"]
-        periodo = row["Start"]
+        periodo = row["Start"] - 1
         producto = row["Producto"]
         demanda = row["Demanda"]
         task_mode = row["task_mode"]
@@ -112,8 +111,7 @@ def dataframe_to_array(
                 , paso=paso
             )
             
-            array[dict_maquinas[maquina], periodo + i - 1] = valor
-    
+            array[dict_maquinas[maquina], periodo + i] = valor
     return array
 
 def grafica_gantt_plt(
@@ -123,13 +121,21 @@ def grafica_gantt_plt(
         , max_value_x : int
         , costo_energia : float = None
         , makespan : int = None
-        , save_path : str | Path = None
+        , save_path : str = None
+        , kwargs_fig : dict = None
+        , mostrar_maquinas : list[str] = None
+        , subtitulo : str = "Etiqueta: Maquina|Producto|Demanda|task_mode|paso"
     ):
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(
+        figsize=(16, 8), layout='tight'
+    )
     
     task_modes = df["task_mode"].unique()
     
+    if mostrar_maquinas is None:
+        mostrar_maquinas : list[str] = df["Maquina"].unique().tolist()
+        
     # color map para los task mode
     color_dict = {
         #MAQ118
@@ -156,8 +162,14 @@ def grafica_gantt_plt(
         start = row['Start']
         duration = row["delta"]
         machine = row["Maquina"]
+        if machine not in mostrar_maquinas:
+            continue
+        
         color = color_dict.get(row["task_mode"], "gray")
-        bar = ax.barh(machine, duration, left=start, height=0.5, color=color)
+        bar = ax.barh(machine
+            , duration, left=start, height=0.5, color=color
+            , edgecolor="white", linewidth=0.1
+        )
         bars.append(bar[0])
         activities.append(row["Activity"])
 
@@ -189,7 +201,7 @@ def grafica_gantt_plt(
     fig.suptitle(
         "Gráfica Gantt de tasks"
     )
-    subtitulo = "Etiqueta: Maquina|Producto|Demanda|task_mode|paso"
+    #subtitulo = "Etiqueta: Maquina|Producto|Demanda|task_mode|paso"  
     
     if makespan is not None:
         subtitulo = subtitulo + f"\nmakespan: {makespan}"
@@ -197,10 +209,11 @@ def grafica_gantt_plt(
     if costo_energia is not None:
         subtitulo = subtitulo + f"\nCosto de energía: {costo_energia:.2f}"
     
-    ax.set_title(
-        subtitulo
-        , loc="left"
-    )
+    if subtitulo != "":
+        ax.set_title(
+            subtitulo
+            , loc="left"
+        )
     ax.invert_yaxis() # To display tasks from top to bottom
     
     # hover information
@@ -241,8 +254,11 @@ def grafica_gantt_plt(
     fig.canvas.mpl_connect("motion_notify_event", hover)
 
     if save_path is not None:
+        if kwargs_fig is None:
+            kwargs_fig = dict()
         fig.savefig(
             fname=save_path
+            , **kwargs_fig
         )
     
     plt.tight_layout()

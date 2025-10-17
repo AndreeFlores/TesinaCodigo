@@ -2,7 +2,6 @@ import json
 import os
 import numpy as np
 from typing import Any, Generator
-import re
 
 PATH_INPUT = os.path.join(os.path.dirname(os.path.realpath(__file__)),'Datos Tesina','Input_JSON_Schedule_Optimization.json')
 
@@ -160,6 +159,9 @@ class Datos:
                     'price' : 0.0,
                     'amount' : solar[i-1]
                 }
+        
+        self.solar_amount = np.array(solar)
+        self.socket_price = np.array(socket)
         
         #crear diccionario de productos
         """
