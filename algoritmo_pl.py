@@ -291,7 +291,7 @@ class ModeloLineal:
                 continue
             
             self.modelo.addConstr(
-                prod_num_paso[(producto,num,paso-1)] + 1 <= prod_num_paso[(producto,num,paso)]
+                diccionario_receta[(producto,num,paso-1)]["Final"] + 1 <= diccionario_receta[(producto,num,paso)]["Inicio"]
                 , name=f"Paso_receta_[{producto}][{num}][{paso}]".replace(" ","_")
             )
                 
@@ -533,8 +533,8 @@ class ModeloLineal:
                 dict_sumas[prod]["primero"] = gp.LinExpr()
                 dict_sumas[prod]["todos"] = dict()
             
-                if intervalo not in dict_sumas[prod]["todos"]:
-                    dict_sumas[prod]["todos"][intervalo] = gp.LinExpr()
+            if intervalo not in dict_sumas[prod]["todos"]:
+                dict_sumas[prod]["todos"][intervalo] = gp.LinExpr()
             
             for periodo in periodos:
                 if intervalo == 0:
@@ -556,7 +556,7 @@ class ModeloLineal:
                     continue
             
                 self.modelo.addConstr(
-                    dict_sumas[prod]["todos"][intervalo] - dict_sumas[prod]["todos"][intervalo-1] == dict_sumas[prod]["primero"]
+                    dict_sumas[key]["todos"][intervalo] - dict_sumas[key]["todos"][intervalo-1] == dict_sumas[prod]["primero"]
                     , name=f"Produccion_intervalo_[{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]".replace(" ","_")
                 )
 
