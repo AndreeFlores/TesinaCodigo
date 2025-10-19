@@ -5,6 +5,7 @@ from typing import Any, Literal
 import random as rand
 from graficas import task_array_to_dataframe, grafica_gantt_plt, dataframe_to_array
 import os
+import time
 
 class IndividuoBase:
     
@@ -402,7 +403,7 @@ class IndividuoBase:
         makespan = self.__makespan(array=array)
         precio_energia = self.__energia_precio(array=array)
         
-        return (peso_makespan * makespan + peso_energia * precio_energia) / (peso_energia + peso_makespan)
+        return (peso_makespan * makespan + peso_energia * precio_energia)
     
     def __revisar_cambio_turno(
             self
@@ -972,7 +973,7 @@ class IndividuoBase:
 
         return True, posiciones
     
-    def __mover_periodo_task_mode(
+    def mover_periodo_task_mode(
             self
             , maquina : str
             , periodo : int
@@ -981,7 +982,7 @@ class IndividuoBase:
             , array : np.ndarray = None
         ) -> tuple[str, int, bool, np.ndarray[tuple[Any, ...], np.dtype[Any]]] :
         """
-        __mover_periodo_task_mode - 
+        mover_periodo_task_mode - 
         
         Mueve el task_mode a traves del periodo, 
         dentro del scheduling de la maquina.
@@ -1513,6 +1514,29 @@ class IndividuoA(IndividuoBase):
             , random_seed : int = None
             , kwargs_inicializar : dict = None
         ):
+        """
+        __init__ - 
+        
+        Inicializa un individuo con una solucion valida.
+        
+        Parameters
+        ----------
+        inicializar (bool, optional, defaults to False) :
+            Si se inicializa o no, utilizado para crear un hijo.
+            False si es un hijo. True si se crea una nueva solucion.
+        
+        saved_path (str, optional, defaults to None) :
+            Si se carga una solucion guardada previamente.
+            Tiene que ser una ubicacion valida.
+        
+        random_seed (int, optional, defaults to None) :
+            Si se escoge utilizar una semilla aleatoria inicial.
+            Si None entonces no se asigna una semilla.
+        
+        kwargs_inicializar (dict, optional, defaults to None) :
+            kwargs de `self.inicializar`
+        
+        """
         super().__init__()
         
         #asignar random seed
@@ -1882,7 +1906,7 @@ class IndividuoA(IndividuoBase):
         
         #se mueve el task_mode
         try: #la mutacion fue exitosa
-            _,_ , resultado, array_resultado =self._IndividuoBase__mover_periodo_task_mode(
+            _,_ , resultado, array_resultado =self.mover_periodo_task_mode(
                 maquina=maquina
                 , periodo=periodo
                 , tipo_movimiento=(-1 if rand.random() < probabilidad_reducir else 1)
@@ -2435,6 +2459,296 @@ class IndividuoA(IndividuoBase):
         
         return df
 
+    def optimizacion_deterministica(self):
+        """
+        optimizacion_deterministica - 
+        
+        Optimiza al individuo reduciendo el periodo todos los task modes
+        utilizando `mover_periodo_task_mode` con `completa = True`
+        """
+        
+        df = self.dataframe()
+        
+        df.sort_values(by="Start", inplace=True)
+        
+        #print(f"optimizacion deterministica")
+        #print(f"Aptitud previa {self.aptitud()}")
+        for idx, row in df.iterrows():
+            
+            periodo = int(row["Start"])-1
+            maquina = str(row["Maquina"])
+            
+            _, _, resultado, array_modificado = self.mover_periodo_task_mode(
+                maquina=maquina
+                , periodo=periodo
+                , tipo_movimiento=-1
+                , completa=True
+            )
+            
+            if resultado:
+                self.cromosoma = array_modificado
+        
+        #print(f"Hubo modificacion {resultado_total}")
+        #print(f"Aptitud despues {self.aptitud()}")
+
+class Poblacion():
+    
+    def __init__(self
+            , n : int = 10
+            , probabilidad_mutacion : float = 0.01
+            , generaciones : int = None
+            , tiempo : float = 3600
+            , peso_mutacion_mover_periodo : float = 1
+            , peso_mutacion_cambiar_task : float = 1
+            , p_saltar_periodo : float = 0.05
+            , peso_seleccion_paso : float = 1.5
+            , peso_seleccion_demanda : float = 3
+            , prob_mutacion_mover_periodo_reducir : float = 0.5
+            , prob_mutacion_mover_periodo_completa : float = 0.5
+            , intentos_mutacion : int = 1
+            , p_optimizacion_deterministica : float = 0.5
+        ):
+        
+        if (generaciones is None) and (tiempo is None):
+            raise ValueError(f"generaciones y tiempo no pueden ser ambos tiempo")
+
+        if (probabilidad_mutacion < 0) or (probabilidad_mutacion > 1):
+            raise ValueError(f"p_mutacion debe ser un valor entre 0 y 1, valor actual={probabilidad_mutacion}")
+        
+        if (n <= 1) and (n % 2 == 1):
+            raise ValueError(f"n debe ser un número par mayor o igual a 2, valor actual={n}")
+        
+        if peso_mutacion_mover_periodo < 0:
+            raise ValueError(f"peso_mutacion_mover_periodo debe ser mayor o igual a 0, valor actual={peso_mutacion_mover_periodo}")
+        
+        if peso_mutacion_cambiar_task < 0:
+            raise ValueError(f"peso_mutacion_cambiar_task debe ser mayor o igual a 0, valor actual={peso_mutacion_cambiar_task}")
+        
+        if (p_optimizacion_deterministica < 0) or (p_optimizacion_deterministica > 1):
+            raise ValueError(f"p_optimizacion_deterministica debe ser un valor entre 0 y 1, valor actual={p_optimizacion_deterministica}")
+        
+        if intentos_mutacion < 0:
+            raise ValueError(f"intentos_mutacion debe ser mayor o igual a 0, valor actual={intentos_mutacion}")
+        
+        self.cantidad_individuos = n
+        self.p_mutacion = probabilidad_mutacion
+        self.cantidad_maxima_generaciones = generaciones
+        self.tiempo_maximo = tiempo
+        self.p_optimizacion_deterministica = p_optimizacion_deterministica
+        
+        self.params_inicializar = {
+            "probabilidad_saltar_periodo":p_saltar_periodo
+            , "peso_seleccion_paso":peso_seleccion_paso
+            , "peso_seleccion_demanda":peso_seleccion_demanda
+        }
+        
+        self.params_mutacion = {
+            "peso_mover_periodo" : peso_mutacion_mover_periodo
+            , "peso_cambiar_task" : peso_mutacion_cambiar_task
+        }
+        
+        self.intentos_mutacion = intentos_mutacion
+        
+        self.params_mutacion_mover_periodos = {
+            "probabilidad_reducir" : prob_mutacion_mover_periodo_reducir
+            , "probabilidad_completo" : prob_mutacion_mover_periodo_completa
+        }
+        
+        self.individuos: list[IndividuoA] = [
+            IndividuoA(inicializar=True,kwargs_inicializar=self.params_inicializar) for _ in range(self.cantidad_individuos)
+        ]
+        
+        self.aptitudes = [[individuo.aptitud() for individuo in self.individuos]]
+
+    def mutar_individuo(self
+            , individuo : IndividuoA
+            , intentos : int = 1
+        ) -> IndividuoA:
+        """
+        mutar_individuo - 
+        
+        Realizar la mutacion de un individuo.
+        
+        Para más información revisa `IndividuoA.mutacion`
+        
+        Parameters
+        ----------
+        individuo (IndividuoA) :
+            El individuo a mutar.
+        
+        Returns
+        -------
+        IndividuoA :
+            El individuo mutado.
+        
+        """
+        
+        for _ in range(intentos):
+            if rand.random() < self.p_mutacion:
+                individuo.mutacion(
+                    peso_mover_periodo=self.params_mutacion["peso_mover_periodo"]
+                    , peso_cambiar_task=self.params_mutacion["peso_cambiar_task"]
+                    , kwargs_mover_periodo=self.params_mutacion_mover_periodos
+                    , intentos_maximo=self.intentos_mutacion
+                )
+
+        return individuo
+    
+    def crear_descendientes(
+            self
+            , madre : IndividuoA
+            , padre : IndividuoA
+            , n_descendientes_regresados : int = 2
+            , n_descendientes_creados : int = 4
+            , probabilidad_optimizacion_deterministica : float = 0.5
+        ) -> list[IndividuoA]:
+        """
+        crear_descendientes - 
+        
+        Crea `n_descendientes_creados` IndividuosA utilizando los individuos
+        ascendientes `madre` y `padre` utilizando `IndividuoA.cruce()`.
+        
+        De los `n_descendientes_creados` Individuos creados, se regresan los 
+        `n_descendientes_regresados` mejores.
+        
+        Los individuos creados pasan por un proceso de mutacion.
+        
+        Para más información revisa `IndividuoA.cruce()`
+        
+        Parameters
+        ----------
+        madre (IndividuoA) :
+            Una instancia de `IndividuoA`
+        
+        padre (IndividuoA) :
+            Una instancia de `IndividuoA`
+        
+        n_descendientes_regresados (int, optional, defaults to 2) :
+            Número de descendientes que se uniran a la población.
+        
+        n_descendientes_creados (int, optional, defaults to 4) :
+            Número de descendientes creados en total. 
+        
+        Returns
+        -------
+        list[IndividuoA] :
+            Lista con los individuos más aptos.
+        
+        Raises
+        ------
+        ValueError :
+            `n_descendientes_regresados` debe ser menor o igual a `n_descendientes_creados`
+        
+        """
+        
+        if n_descendientes_regresados > n_descendientes_creados:
+            raise ValueError("n_descendientes_regresados debe ser menor o igual a n_descendientes_creados")
+        
+        hijos = []
+        aptitudes_hijos = []
+        
+        for _ in range(n_descendientes_creados):
+            hijo, _ = madre.cruce(padre=padre)
+            
+            hijo = self.mutar_individuo(hijo, intentos=self.intentos_mutacion)
+            if rand.random() < probabilidad_optimizacion_deterministica:
+                hijo.optimizacion_deterministica()
+            
+            aptitud_hijo = hijo.aptitud()
+            
+            hijos.append(hijo)
+            aptitudes_hijos.append(aptitud_hijo)
+        
+        #ordenar hijos dependiendo de las aptitudes, de menor a mayor
+        pares_ordenados = sorted(zip(hijos, aptitudes_hijos), key=lambda x: x[1])
+        
+        hijos = [ind for ind, _ in pares_ordenados]
+        aptitudes_hijos = [apt for _, apt in pares_ordenados]
+        
+        print(f"Aptitudes de todos hijos creados: {aptitudes_hijos}")
+        
+        return hijos[:n_descendientes_regresados]
+
+    def crear_generacion(
+            self
+        ):
+        """
+        crear_generacion - 
+        
+        Crea una nueva generacion de individuos (población)
+        
+        Realiza los pasos de cruce y mutación.
+        
+        Revisa `self.crear_descendientes` y `self.mutar_individuo` para más información.
+        """
+        
+        generacion_actual = self.individuos.copy()
+        rand.shuffle(generacion_actual)
+        
+        generacion_nueva: list[IndividuoA] = []
+        
+        print("*"*10)
+        print("Creando generacion nueva")
+        
+        while len(generacion_nueva) != self.cantidad_individuos:
+            madre = generacion_actual.pop(0)
+            padre = generacion_actual.pop(0)
+            
+            print(f"Aptitud madre {madre.aptitud():.2f}")
+            print(f"Aptitud padre {padre.aptitud():.2f}")
+            
+            hijos_nuevos: list[IndividuoA] = self.crear_descendientes(
+                madre=madre
+                ,padre=padre
+                ,probabilidad_optimizacion_deterministica=self.p_optimizacion_deterministica
+            )
+            
+            for hijo in hijos_nuevos:
+                print(f"Aptitud hijo {hijo.aptitud():.2f}")
+                generacion_nueva.append(hijo)
+
+            
+            print(f"Cantidad individuos {len(generacion_nueva)}")
+        
+        self.individuos = generacion_nueva
+        
+        aptitudes_nuevas = [individuo.aptitud() for individuo in self.individuos]
+        
+        print("Aptitudes nueva generacion")
+        print(aptitudes_nuevas)
+        
+        self.aptitudes.append(aptitudes_nuevas)
+
+    def calcular_solucion(
+            self
+            , guardar_resultado = True
+        ):
+        
+        time_start = time.time()
+        generacion = 1
+        print("Iniciando")
+        print("*"*20)
+        continuar = True
+        while continuar:
+            
+            print(f"Creando generacion {generacion}")
+            self.crear_generacion()
+            
+            aptitudes_actual = self.aptitudes[-1]
+            print(f"Valor optimo: {min(aptitudes_actual)}")
+            print(f"Tiempo total: {time.time() - time_start:.2f} segundos")
+            print("*"*20)
+            
+            generacion += 1
+            
+            if self.cantidad_maxima_generaciones is not None:
+                if generacion > self.cantidad_maxima_generaciones:
+                    continuar = False
+            if self.tiempo_maximo is not None:
+                if time.time() - time_start > self.tiempo_maximo:
+                    continuar = False
+        
+
 def figura_muestra_mutacion():
     """
     figura_muestra_mutacion - 
@@ -2593,7 +2907,16 @@ def figura_muestra_cruce():
     )
     
 def main():
-    figura_muestra_mutacion()
+    poblacion = Poblacion(
+        n=10
+        , p_saltar_periodo=0.10
+        , tiempo=None
+        , generaciones=5
+        , intentos_mutacion=10
+        , probabilidad_mutacion=0.05
+        , p_optimizacion_deterministica=1
+    )
+    poblacion.calcular_solucion()
     
 if __name__ == "__main__":
     main()

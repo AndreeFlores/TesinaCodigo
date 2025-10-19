@@ -90,6 +90,7 @@ class ModeloLineal:
             , fill_value = ""
         )
     
+    #listo
     def crear_objetivos(self
             , weight_makespan : float = 1
             , weight_energy : float = 1
@@ -140,6 +141,7 @@ class ModeloLineal:
         
         self.modelo.ModelSense = sense
 
+    #listo ecuacion 13
     def restriccion_Makespan(self):
         """
         restriccion_Makespan - 
@@ -155,6 +157,7 @@ class ModeloLineal:
                     , name = f"Makespan_[{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}][{periodo}]".replace(" ","_")
                 )
     
+    #listo ecuacion 14
     def restriccion_Energia(self):
         """
         restriccion_Energia - 
@@ -166,20 +169,22 @@ class ModeloLineal:
         """
         
         for periodo in self.datos.periodos:
-            lista_variables = []
+            
+            expresion = gp.LinExpr()
             
             for producto, num, paso, task, task_mode, maquina, intervalo in self.datos.iterar_completo():
-                lista_variables.append(
-                    self.datos.energia_task_intervalo(task=task, task_mode=task_mode, intervalo=intervalo) *
+                
+                expresion.add(
                     self.variables["Production"][producto][num][paso][task][task_mode][maquina][intervalo][periodo]
+                    , self.datos.energia_task_intervalo(task=task, task_mode=task_mode, intervalo=intervalo)
                 )
                 
             self.modelo.addConstr(
-                self.variables["Energy"][periodo]["Solar"] + self.variables["Energy"][periodo]["Socket"] ==
-                gp.quicksum(lista_variables)
+                self.variables["Energy"][periodo]["Solar"] + self.variables["Energy"][periodo]["Socket"] == expresion
                 , name = f"Uso_de_Energia_{periodo}"
             )
     
+    #listo ecuacion 20
     def restriccion_CambioTurno(self):
         """
         restriccion_CambioTurno - 
@@ -215,6 +220,82 @@ class ModeloLineal:
                     self.variables["Production"][producto][num] \
                         [paso][task][task_mode][maquina][intervalo][periodo].ub = 0
 
+    #listo ecuacion 15
+    def restriccion_produccion(self):
+        """
+        restriccion_produccion - 
+        
+        Crea las restricciones que limita un solo task_mode para cada paso de produccion.
+        """
+        
+        periodos = self.datos.periodos
+        diccionario_pasos = dict()
+        for producto, num, paso, task, task_mode, maquina, intervalo in self.datos.iterar_completo():
+            
+            prod_num_paso = (producto, num, paso)
+            if prod_num_paso not in diccionario_pasos:
+                diccionario_pasos[prod_num_paso] = gp.LinExpr()
+            
+            if intervalo != 0:
+                continue
+            
+            for periodo in periodos:
+                diccionario_pasos[prod_num_paso].add(
+                    self.variables["Production"][producto][num][paso][task][task_mode][maquina][intervalo][periodo]
+                )
+        
+        for key in diccionario_pasos.keys():
+            producto, num, paso = key
+            
+            self.modelo.addConstr(
+                diccionario_pasos[key] == 1
+                , name=f"Inicio_Paso_[{producto}][{num}][{paso}]".replace(" ","_")
+            )
+                
+    #ecuacion 16
+    def restriccion_recetas_2(self):
+        """
+        restriccion_recetas_2 - 
+        
+        Crea las restricciones que limita los periodos entre distintos pasos del producto-demanda
+        """
+        
+        periodos = self.datos.periodos
+        diccionario_receta = dict()
+        for producto, num, paso, task, task_mode, maquina, intervalo in self.datos.iterar_completo():
+            
+            prod_num_paso = (producto, num, paso)
+            if prod_num_paso not in diccionario_receta:
+                diccionario_receta[prod_num_paso] = dict()
+                diccionario_receta[prod_num_paso]["Inicio"] = gp.LinExpr()
+                diccionario_receta[prod_num_paso]["Final"] = gp.LinExpr()
+
+            if intervalo == 0:
+                for periodo in periodos:
+                    diccionario_receta[prod_num_paso]["Inicio"].add(
+                        self.variables["Production"][producto][num][paso][task][task_mode][maquina][intervalo][periodo]
+                        , periodo
+                    )
+
+            cantidad_intervalos = len(self.datos.intervalos(task_mode=task_mode))-1
+            if intervalo == cantidad_intervalos:
+                for periodo in periodos:
+                    diccionario_receta[prod_num_paso]["Final"].add(
+                        self.variables["Production"][producto][num][paso][task][task_mode][maquina][intervalo][periodo]
+                        , periodo
+                    )
+        
+        for prod_num_paso in diccionario_receta.keys():
+            producto, num, paso = prod_num_paso
+            if paso == 0:
+                continue
+            
+            self.modelo.addConstr(
+                prod_num_paso[(producto,num,paso-1)] + 1 <= prod_num_paso[(producto,num,paso)]
+                , name=f"Paso_receta_[{producto}][{num}][{paso}]".replace(" ","_")
+            )
+                
+    #revisar (version anterior)
     def restriccion_Production(self):
         """
         restriccion_Production - 
@@ -242,6 +323,7 @@ class ModeloLineal:
                 , name = f"Production_intervalo_[{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]".replace(" ","_")
             )
 
+    #revisar (version anterior)
     def restriccion_Recetas(self):
         """
         restriccion_Recetas - 
@@ -281,10 +363,10 @@ class ModeloLineal:
                         , name = f"Production_binario_[{producto}][{num}][{paso}]".replace(" ","_")
                     )
                     
-                    self.modelo.addConstr(
-                        periodo_actual >= 0 + self.delta
-                        , name = f"Production_periodo_[{producto}][{num}][{paso}]".replace(" ","_")
-                    )
+                    #self.modelo.addConstr(
+                    #    periodo_actual >= 1#0 + self.delta
+                    #    , name = f"Production_periodo_[{producto}][{num}][{paso}]".replace(" ","_")
+                    #)
                     
                 else:
                     #periodo anterior
@@ -333,18 +415,13 @@ class ModeloLineal:
                         , name = f"Production_periodo_[{producto}][{num}][{paso}]".replace(" ","_")
                     )                
 
+    #listo ecuacion 17
     def restriccion_maquinas(self):
         """
         restriccion_maquinas - 
         
         Crea las restricciones que limitan que las maquinas
         solo puedan procesar una actividad a la vez en cada periodo
-        
-        Las 3 restricciones 
-        * `restriccion_maquinas`
-        * `restriccion_Production`
-        * `restriccion_intervalos`
-        limitan los intervalos a cuales periodos pueden ser asignados
         """
         
         #crea las restricciones para que las maquinas solo 
@@ -371,6 +448,7 @@ class ModeloLineal:
                 , name = f"Maquina_activa_[{key[0]}][{key[1]}]".replace(" ","_")
             )
 
+    #revisar (version anterior) ecuacion 18
     def restriccion_intervalos(self):
         """
         restriccion_intervalos -
@@ -433,6 +511,56 @@ class ModeloLineal:
                                 , name = f"Produccion_Intervalo_lb_[{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]".replace(" ","_")
                             )
 
+    #listo ecuacion 18
+    def restriccion_intervalos_2(self):
+        """
+        restriccion_intervalos_2 - 
+        
+        Crea las restricciones para que los intervalos de cada task_mode tengan:
+        * Una diferencia de 1 periodo si el primer intervalo esta activo,
+            el cual es posible solo cuando todos los intervalos estan activos
+        * Una diferencia de 0 periodo si el primer intervalo esta inactivo,
+            el cual es posible solo cuando todos los intervalos estan inactivos
+        """
+        
+        dict_sumas = dict()
+        periodos = self.datos.periodos
+        for producto, num, paso, task, task_mode, maquina, intervalo in self.datos.iterar_completo():
+            prod = (producto,num,paso,task,task_mode,maquina)
+            
+            if prod not in dict_sumas:
+                dict_sumas[prod] = dict()
+                dict_sumas[prod]["primero"] = gp.LinExpr()
+                dict_sumas[prod]["todos"] = dict()
+            
+                if intervalo not in dict_sumas[prod]["todos"]:
+                    dict_sumas[prod]["todos"][intervalo] = gp.LinExpr()
+            
+            for periodo in periodos:
+                if intervalo == 0:
+                    dict_sumas[prod]["primero"].add(
+                        self.variables["Production"][producto][num][paso][task][task_mode][maquina][intervalo][periodo]
+                    )
+                
+                dict_sumas[prod]["todos"][intervalo].add(
+                    self.variables["Production"][producto][num][paso][task][task_mode][maquina][intervalo][periodo]
+                    , periodo
+                )
+        
+        for key in dict_sumas.keys():
+            producto,num,paso,task,task_mode,maquina = key
+            
+            for intervalo in dict_sumas[key]["todos"].keys():
+                
+                if intervalo == 0:
+                    continue
+            
+                self.modelo.addConstr(
+                    dict_sumas[prod]["todos"][intervalo] - dict_sumas[prod]["todos"][intervalo-1] == dict_sumas[prod]["primero"]
+                    , name=f"Produccion_intervalo_[{producto}][{num}][{paso}][{task}][{task_mode}][{maquina}][{intervalo}]".replace(" ","_")
+                )
+
+    #listo ecuacion 19
     def restriccion_producto_terminado(self):
         """
         restriccion_producto_terminado - 
@@ -484,6 +612,23 @@ class ModeloLineal:
         self.restriccion_producto_terminado()
         
         self.restriccion_Energia()
+    
+    def crear_restricciones_2(self):
+        """
+        crear_restricciones - 
+        
+        Crea las restricciones necesarias del problema.
+        """
+        
+        self.restriccion_Makespan() #ecuacion 13
+        self.restriccion_Energia() #ecuacion 14
+        self.restriccion_produccion() #ecuacion 15
+        self.restriccion_recetas_2() #ecuacion 16
+        self.restriccion_maquinas() #ecuacion 17
+        self.restriccion_intervalos_2() #ecuacion 18
+        self.restriccion_producto_terminado() #ecuacion 19
+        self.restriccion_CambioTurno() #ecuacion 20
+        
 
     def resolver(self, write_file : str | Path = "out.sol"):
         """
@@ -547,7 +692,7 @@ def main(guardar_modelo : bool = False):
 
     start = time.time()
     print("Creando restricciones")
-    ml.crear_restricciones()
+    ml.crear_restricciones_2()
     print(f"Tiempo en crear restricciones: {time.time() - start:.2f} segundos")
     
     if (not os.path.exists("modelo.lp")) and (guardar_modelo):
