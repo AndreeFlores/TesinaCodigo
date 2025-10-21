@@ -670,6 +670,19 @@ class ModeloLineal:
                 raise NotImplementedError("No existe una solucion")
             self.modelo.write(write_file)
     
+    def resolver_completo(self, write_file : str | Path = "out.sol"):
+        self.modelo.setParam("LogFile", "lm_schedule.log")
+        
+        self.modelo.params.MIPFocus = 3 #mejorar bound del objetivo
+        self.modelo.params.Heuristics = 0.05 #heuristicas, valores mas grandes producen mas y mejores soluciones factibles
+        self.modelo.params.MIPGap = 1e-4 #valor default
+        self.modelo.Params.CutPasses = -1
+        self.modelo.Params.Cuts = -1
+        self.modelo.Params.Disconnected = -1
+        
+        self.modelo.optimize()
+        self.modelo.write(write_file)
+    
     def resultado(self, path : Path):
         archivo = open(path,"w")
         
@@ -683,7 +696,10 @@ class ModeloLineal:
         archivo.close()
         
 
-def main(guardar_modelo : bool = False):
+def main(
+        guardar_modelo : bool = False
+        , resolver_completo : bool = True
+    ):
     ml = ModeloLineal()
     start = time.time()
     print("Creando objetivos")
@@ -700,8 +716,11 @@ def main(guardar_modelo : bool = False):
 
     start = time.time()
     print("Resolviendo problema lineal")
-    for _ in range(5):
-        ml.resolver()
+    if resolver_completo:
+        ml.resolver_completo()
+    else:
+        for _ in range(5):
+            ml.resolver()
     print(f"Tiempo en resolver problema lineal: {time.time() - start:.2f} segundos")
 
     start = time.time()
