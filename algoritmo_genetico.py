@@ -394,7 +394,7 @@ class IndividuoBase:
             raise ValueError(f"peso_makespan debe ser mayor o igual a 0")
         if peso_energia < 0:
             raise ValueError(f"peso_energia debe ser mayor o igual a 0")
-        if peso_energia + peso_energia <= 0:
+        if (peso_makespan + peso_energia) <= 0:
             raise ValueError(f"peso_energia + peso_makespan debe ser mayor a 0")
         
         if array is None:
@@ -2365,6 +2365,13 @@ class IndividuoA(IndividuoBase):
             , kwargs_to_csv : dict = None
             , kwargs_fig : dict = None
             , kwargs_grafica : dict = None
+            , min_value_x : int = None
+            , max_value_x : int = None
+            , kwargs_suptitle : dict = None
+            , kwargs_subtitle : dict = None
+            , kwargs_label : dict = None
+            , kwargs_ticks : dict = None
+            , titulo : str = "Gráfica Gantt de tasks"
         ):
         """
         grafica_gantt - 
@@ -2410,15 +2417,26 @@ class IndividuoA(IndividuoBase):
         if kwargs_grafica is None:
             kwargs_grafica = dict()
         
+        if min_value_x is None:
+            min_value_x=min(self.periodos)-1
+        
+        if max_value_x is None:
+            max_value_x=max(self.periodos)+1
+        
         grafica_gantt_plt(
             df=df
             , time_leaps=self.cambio_turno
-            , min_value_x=min(self.periodos)-1 
-            , max_value_x=max(self.periodos)+1
+            , min_value_x=min_value_x
+            , max_value_x=max_value_x
             , costo_energia=energia
             , makespan=makespan
             , save_path=path_save_fig
             , kwargs_fig=kwargs_fig
+            , kwargs_suptitle = kwargs_suptitle
+            , kwargs_subtitle=kwargs_subtitle
+            , kwargs_label=kwargs_label
+            , kwargs_ticks=kwargs_ticks
+            , titulo = titulo
             , **kwargs_grafica
         )
 
@@ -2899,12 +2917,18 @@ class Poblacion():
             , "probabilidad_completo" : prob_mutacion_mover_periodo_completa
         }
         
+        inicio = time.time()
+        
         self.individuos: list[IndividuoA] = [
             IndividuoA(inicializar=True,kwargs_inicializar=self.params_inicializar) for _ in range(self.cantidad_individuos)
         ]
         
         self.aptitudes = [[individuo.aptitud() for individuo in self.individuos]]
         
+        self.makespan = [[individuo.aptitud(peso_makespan=1,peso_energia=0) for individuo in self.individuos]]
+        self.costo = [[individuo.aptitud(peso_makespan=0,peso_energia=1) for individuo in self.individuos]]
+        
+        self.tiempos= [time.time()-inicio]
         self.individuo_incumbente : IndividuoA = None
 
     def mutar_individuo(self
@@ -3067,12 +3091,15 @@ class Poblacion():
         self.individuos = generacion_nueva
         
         aptitudes_nuevas = [individuo.aptitud() for individuo in self.individuos]
-        
+        makespan_nuevas = [individuo.aptitud(peso_makespan=1,peso_energia=0) for individuo in self.individuos]
+        costo_nuevas = [individuo.aptitud(peso_makespan=0,peso_energia=1) for individuo in self.individuos]
         if verbose:
             print("Aptitudes nueva generacion")
             print(aptitudes_nuevas)
         
         self.aptitudes.append(aptitudes_nuevas)
+        self.makespan.append(makespan_nuevas)
+        self.costo.append(costo_nuevas)
 
     def calcular_solucion(
             self
@@ -3086,15 +3113,16 @@ class Poblacion():
             print("*"*20)
         continuar = True
         while continuar:
-            if verbose:
-                print(f"Creando generacion {generacion}")
+            inicio_generacion = time.time()
             self.crear_generacion()
+            self.tiempos.append(time.time()-inicio_generacion)
             
             aptitudes_actual = self.aptitudes[-1]
             if verbose:
-                print(f"Valor optimo: {min(aptitudes_actual)}")
-                print(f"Tiempo total: {time.time() - time_start:.2f} segundos")
-                print("*"*20)
+                print(
+                    f"Generación {generacion} creada|" + f"Valor optimo: {min(aptitudes_actual)}|" +f"Tiempo total: {time.time() - time_start:.2f} segundos"
+                    , end=f"\r"
+                )
             
             generacion += 1
             
@@ -3123,15 +3151,22 @@ class Poblacion():
         
         return self.individuo_incumbente
     
-    def guardar(self):
+    def guardar(self, path : str = None):
         """
         guardar - 
         
         Guarda los resultados de la población
+        
+        Parameters
+        ----------
+        path (str, optional, defaults to None) :
+            Ubicacion donde se guardará la informacion. No el nombre del archivo.
+            Archivo guardado en `os.path.join(path,f"{self.id}.txt")`
         """
         individuo = self.incumbente()
         
-        path = os.path.join("Datos Tesina", "algoritmo genetico")
+        if path is None:
+            path = os.path.join("Datos Tesina", "algoritmo genetico")
         # Crear las carpetas si no existen
         if not os.path.exists(path):
             os.makedirs(path, exist_ok=True)
@@ -3139,7 +3174,8 @@ class Poblacion():
         with open(os.path.join(path,f"{self.id}.txt"),"w", encoding="utf-8") as archivo:
             archivo.write(f"nombre: {self.id}")
             archivo.write(f"\nresultado: {individuo.aptitud()}")
-            archivo.write(f"\n\nParámetros")
+            archivo.write(f"\nmakespan={individuo.aptitud(peso_energia=0)},energia={individuo.aptitud(peso_makespan=0)}")
+            archivo.write(f"\nParámetros")
             archivo.write(f"\ncantidad_individuos: {self.cantidad_individuos}")
             archivo.write(f"\np_mutacion: {self.p_mutacion}")
             archivo.write(f"\ncantidad_maxima_generaciones: {self.cantidad_maxima_generaciones}")
@@ -3158,7 +3194,22 @@ class Poblacion():
                 archivo.write(f"\nGeneracion {g}")
                 archivo.write(f"\naptitudes {self.aptitudes[g]}")
                 promedio = sum(self.aptitudes[g]) / len(self.aptitudes[g])
-                archivo.write(f"\npromedio {promedio}")
+                archivo.write(f"\npromedio de aptitud {promedio}")
+                archivo.write(f"\ntiempo de creacion de generacion (segundos) {self.tiempos[g]:.4f}")
+            archivo.write(f"\n\nValores Generaciones makespan")
+            for g in range(len(self.makespan)):
+                archivo.write(f"\nGeneracion {g}")
+                archivo.write(f"\nmakespan {self.makespan[g]}")
+                promedio = sum(self.makespan[g]) / len(self.makespan[g])
+                archivo.write(f"\npromedio de makespan {promedio}")
+                archivo.write(f"\ntiempo de creacion de generacion (segundos) {self.tiempos[g]:.4f}")
+            archivo.write(f"\n\nValores Generaciones costo")
+            for g in range(len(self.costo)):
+                archivo.write(f"\nGeneracion {g}")
+                archivo.write(f"\ncosto {self.costo[g]}")
+                promedio = sum(self.costo[g]) / len(self.costo[g])
+                archivo.write(f"\npromedio de costo {promedio}")
+                archivo.write(f"\ntiempo de creacion de generacion (segundos) {self.tiempos[g]:.4f}")
       
 def figura_muestra_mutacion():
     """
@@ -3296,7 +3347,7 @@ def figura_muestra_cruce():
     )
     
     #crear hijo
-    hijo, resultado = madre.cruce(
+    hijo, resultado = madre.cruce_time_leap(
         padre=padre
     )
     
@@ -3316,6 +3367,410 @@ def figura_muestra_cruce():
         }
         , path_save_fig=os.path.join(path_base,"grafica_cromosoma_3.png")
     )
+
+def figura_poster_cruce():
+    path_base = os.path.join("Datos Tesina", "Figuras_Tablas", "Poster","Cruce")
+    # Crear las carpetas si no existen
+    if not os.path.exists(path_base):
+        os.makedirs(path_base, exist_ok=True)
+    
+    #inicializar individuos
+    madre = IndividuoA(
+        inicializar=True
+        , saved_path=os.path.join(path_base,"cromosoma_poster_1.csv")
+        , random_seed=123
+    )
+    padre = IndividuoA(
+        inicializar=True
+        , saved_path=os.path.join(path_base,"cromosoma_poster_2.csv")
+        , random_seed=456
+    )
+
+    #guardar individuos
+    if not os.path.exists(os.path.join(path_base,"cromosoma_poster_1.csv")):
+        madre.dataframe(path_save=os.path.join(path_base,"cromosoma_poster_1.csv")
+            , kwargs_to_csv={"index":False}
+        )
+    if not os.path.exists(os.path.join(path_base,"cromosoma_poster_2.csv")):
+        padre.dataframe(path_save=os.path.join(path_base,"cromosoma_poster_2.csv")
+            , kwargs_to_csv={"index":False}
+        )
+    
+    #crear hijo
+    hijo, resultado = madre.cruce_time_leap(
+        padre=padre
+    )
+    
+    if not os.path.exists(os.path.join(path_base,"cromosoma_poster_3.csv")):
+        hijo.dataframe(path_save=os.path.join(path_base,"cromosoma_poster_3.csv")
+            , kwargs_to_csv={"index":False}
+        )
+
+    madre.grafica_gantt(
+        path_save_df=os.path.join(path_base,"cromosoma_poster_1.csv")
+        , path_save_fig=os.path.join(path_base,"grafica_cromosoma_poster_1.png")
+        , kwargs_to_csv={
+            "index":False
+        }
+        , kwargs_grafica={
+            "mostrar_maquinas" : ["MAQ118","MAQ120"]
+            , "subtitulo" : "" 
+            , "mostrar_leyenda" : False
+            , "size_horizontal" : 8
+            , "size_vertical" : 4
+        }
+        , max_value_x=192
+        , titulo="Individuo madre"
+        , kwargs_suptitle={
+            "fontweight" : "bold"
+            , "fontsize" : 18
+        }
+        , kwargs_subtitle={
+            "fontweight" : "bold"
+            , "fontsize" : 14
+        }
+        , kwargs_label={
+            "fontweight" : "bold"
+            , "fontsize" : 14
+        }
+        , kwargs_fig={
+            "transparent" : True
+        }
+        , kwargs_ticks = {
+            "fontweight" : "bold"
+            , "fontsize" : 12
+        }
+    )
+    
+    padre.grafica_gantt(
+        path_save_df=os.path.join(path_base,"cromosoma_poster_2.csv")
+        , path_save_fig=os.path.join(path_base,"grafica_cromosoma_poster_2.png")
+        , kwargs_to_csv={
+            "index":False
+        }
+        , kwargs_grafica={
+            "mostrar_maquinas" : ["MAQ118","MAQ120"]
+            , "subtitulo" : "" 
+            , "mostrar_leyenda" : False
+            , "size_horizontal" : 8
+            , "size_vertical" : 4
+        }
+        , max_value_x=192
+        , titulo="Individuo padre"
+        , kwargs_suptitle={
+            "fontweight" : "bold"
+            , "fontsize" : 18
+        }
+        , kwargs_subtitle={
+            "fontweight" : "bold"
+            , "fontsize" : 14
+        }
+        , kwargs_label={
+            "fontweight" : "bold"
+            , "fontsize" : 14
+        }
+        , kwargs_fig={
+            "transparent" : True
+        }
+        , kwargs_ticks = {
+            "fontweight" : "bold"
+            , "fontsize" : 12
+        }
+    )
+    
+    hijo.grafica_gantt(
+        path_save_df=os.path.join(path_base,"cromosoma_poster_3.csv")
+        , path_save_fig=os.path.join(path_base,"grafica_cromosoma_poster_3.png")
+        , kwargs_to_csv={
+            "index":False
+        }
+        , kwargs_grafica={
+            "mostrar_maquinas" : ["MAQ118","MAQ120"]
+            , "subtitulo" : "" 
+            , "mostrar_leyenda" : False
+            , "size_horizontal" : 8
+            , "size_vertical" : 8
+        }
+        , max_value_x=192
+        , titulo="Individuo descendiente"
+        , kwargs_suptitle={
+            "fontweight" : "bold"
+            , "fontsize" : 18
+        }
+        , kwargs_subtitle={
+            "fontweight" : "bold"
+            , "fontsize" : 14
+        }
+        , kwargs_label={
+            "fontweight" : "bold"
+            , "fontsize" : 14
+        }
+        , kwargs_fig={
+            "transparent" : True
+        }
+        , kwargs_ticks = {
+            "fontweight" : "bold"
+            , "fontsize" : 12
+        }
+    )
+
+def figura_poster_mutacion():
+    path_base = os.path.join("Datos Tesina", "Figuras_Tablas", "Poster","Mutacion")
+    # Crear las carpetas si no existen
+    if not os.path.exists(path_base):
+        os.makedirs(path_base, exist_ok=True)
+    
+    #inicializar individuos
+    madre = IndividuoA(
+        inicializar=True
+        , saved_path=os.path.join(path_base,"cromosoma_poster_mutacion_1.csv")
+        , random_seed=42
+    )
+    
+    #guardar individuos
+    if not os.path.exists(os.path.join(path_base,"cromosoma_poster_mutacion_1.csv")):
+        madre.dataframe(path_save=os.path.join(path_base,"cromosoma_poster_mutacion_1.csv")
+            , kwargs_to_csv={"index":False}
+        )
+    
+    madre.grafica_gantt(
+        path_save_df=os.path.join(path_base,"cromosoma_poster_mutacion_1.csv")
+        , path_save_fig=os.path.join(path_base,"grafica_cromosoma_poster_1.png")
+        , kwargs_to_csv={
+            "index":False
+        }
+        , kwargs_grafica={"subtitulo" : "" 
+            , "mostrar_leyenda" : False
+            , "size_horizontal" : 8
+            , "size_vertical" : 4
+        }
+        , max_value_x=192
+        , titulo="Individuo, antes de mutación"
+        , kwargs_suptitle={
+            "fontweight" : "bold"
+            , "fontsize" : 18
+        }
+        , kwargs_subtitle={
+            "fontweight" : "bold"
+            , "fontsize" : 14
+        }
+        , kwargs_label={
+            "fontweight" : "bold"
+            , "fontsize" : 14
+        }
+        , kwargs_fig={
+            "transparent" : True
+        }
+        , kwargs_ticks = {
+            "fontweight" : "bold"
+            , "fontsize" : 12
+        }
+    )
+    
+    for periodo_input in [3,15,27,36,46,55,66,89,102,116]:
+        madre.mutacion_mover_periodo(
+            maquina="MAQ118", periodo=periodo_input
+            , probabilidad_completo=1, probabilidad_reducir=1
+        )
+    
+    #cambiar el task en
+    #MAQ119,152,163,SMOOTH ELASTIC(A),1,Harden[0.5] TM1,0,11,MAQ119|SMOOTH ELASTIC(A)|1|Harden[0.5] TM1|0
+    madre.mutacion_cambiar_task_mode(
+        maquina="MAQ119", periodo=152
+    )
+    
+    #guardar individuos
+    if not os.path.exists(os.path.join(path_base,"cromosoma_poster_mutacion_2.csv")):
+        madre.dataframe(path_save=os.path.join(path_base,"cromosoma_poster_mutacion_2.csv")
+            , kwargs_to_csv={"index":False}
+        )
+    
+    madre.grafica_gantt(
+        path_save_df=os.path.join(path_base,"cromosoma_poster_mutacion_2.csv")
+        , path_save_fig=os.path.join(path_base,"grafica_cromosoma_poster_2.png")
+        , kwargs_to_csv={
+            "index":False
+        }
+        , kwargs_grafica={"subtitulo" : "" 
+            , "mostrar_leyenda" : False
+            , "size_horizontal" : 8
+            , "size_vertical" : 4
+        }
+        , max_value_x=192
+        , titulo="Individuo, después de mutación"
+        , kwargs_suptitle={
+            "fontweight" : "bold"
+            , "fontsize" : 18
+        }
+        , kwargs_subtitle={
+            "fontweight" : "bold"
+            , "fontsize" : 14
+        }
+        , kwargs_label={
+            "fontweight" : "bold"
+            , "fontsize" : 14
+        }
+        , kwargs_fig={
+            "transparent" : True
+        }
+        , kwargs_ticks = {
+            "fontweight" : "bold"
+            , "fontsize" : 12
+        }
+    )
+
+def figura_poster_ejemplo():
+    path_base = os.path.join("Datos Tesina", "Figuras_Tablas", "Poster","Ejemplo")
+    
+    # Crear las carpetas si no existen
+    if not os.path.exists(path_base):
+        os.makedirs(path_base, exist_ok=True)
+    
+    #inicializar individuos
+    ind = IndividuoA(
+        inicializar=True
+        , saved_path=os.path.join(path_base,"cromosoma_poster_ejemplo.csv")
+        , random_seed=123
+    )
+    
+    #guardar individuos
+    if not os.path.exists(os.path.join(path_base,"cromosoma_poster_ejemplo.csv")):
+        ind.dataframe(path_save=os.path.join(path_base,"cromosoma_poster_ejemplo.csv")
+            , kwargs_to_csv={"index":False}
+        )
+    
+    ind.grafica_gantt(
+        path_save_df=os.path.join(path_base,"cromosoma_poster_ejemplo.csv")
+        , path_save_fig=os.path.join(path_base,"cromosoma_poster_ejemplo.png")
+        , kwargs_to_csv={
+            "index":False
+        }
+        , kwargs_grafica={"subtitulo" : "" 
+            , "mostrar_leyenda" : False
+            , "size_horizontal" : 16
+            , "size_vertical" : 9
+            , "mostrar_leyenda" : False
+        }
+        , kwargs_suptitle={
+            "fontsize" : 36
+            , "fontweight" : "bold"
+        }
+        , kwargs_subtitle={
+            "fontsize" : 18
+            , "fontweight" : "bold"
+        }
+        , kwargs_label={
+            "fontsize" : 18
+            , "fontweight" : "bold"
+        }
+        , kwargs_fig={
+            "transparent" : True
+        }
+        , kwargs_ticks = {
+            "fontsize" : 18
+            , "fontweight" : "bold"
+        }
+        , titulo="Actividades asignadas, ejemplo de un individuo"
+    )
+    
+def optimizacion_final_tesis():
+    
+    poblacion = Poblacion(
+        random_seed=12345
+        , id_nombre="tesis_2" #tesis_1 #tesis_0
+        , probabilidad_mutacion=0.01
+        , p_optimizacion_deterministica=0
+        , p_saltar_periodo=0.05
+        , peso_seleccion_paso=2
+        , peso_seleccion_demanda=4
+        , peso_mutacion_mover_periodo=4
+        , peso_mutacion_cambiar_task=1
+        , intentos_mutacion=2
+        , prob_mutacion_mover_periodo_reducir=0.66
+        , prob_mutacion_mover_periodo_completa=0.33
+        , tiempo=60*60*5
+    )
+    
+    poblacion.calcular_solucion(verbose=True)
+    poblacion.guardar(path=os.path.join("Datos Tesina", "algoritmo genetico","Tesis"))
+
+def buscar_mejor_parametros() -> tuple[dict, str]:
+    """
+    buscar_mejor_parametros - 
+    
+    Devuelve los mejores parámetros y la ubicación de la mejor
+    población encontrada en la búsqueda.
+    
+    Returns
+    -------
+    tuple[dict, str] :
+        Tupla con elementos:
+        * diccionario con los parámetros y sus valores
+        * str con la ubicación de los parámetros
+    """
+    
+    base_dir = os.path.join("Datos Tesina", "algoritmo genetico","grid search")
+    if not os.path.isdir(base_dir):
+        archivos_path = []
+    else:
+        archivos_path = [
+            os.path.join(base_dir, f)
+            for f in os.listdir(base_dir)
+            if f.lower().endswith(".txt") and os.path.isfile(os.path.join(base_dir, f))
+        ]
+    
+    aptitud_acumulada : float = None
+    mejor_archivo : str = None
+    porc_mejora_acumulada : float = None
+    
+    for archivo_path in archivos_path:
+        with open(archivo_path,"r") as archivo:
+            
+            lineas = archivo.readlines()
+            promedio_aptitud_inicio : float = float(lineas[22-1].removeprefix("promedio de aptitud "))
+            promedio_aptitud_final : float = float(lineas[62-1].removeprefix("promedio de aptitud "))
+            porc_mejora = (promedio_aptitud_final - promedio_aptitud_inicio) / promedio_aptitud_inicio
+            #revisa que el archivo es viable
+            if promedio_aptitud_final < promedio_aptitud_inicio:
+                aptitud_incumbente : float = float(lineas[2-1].removeprefix("resultado: "))
+                if porc_mejora_acumulada is None: #4188
+                    porc_mejora_acumulada = porc_mejora
+                    mejor_archivo = archivo_path
+                if porc_mejora < porc_mejora_acumulada:
+                    porc_mejora_acumulada = porc_mejora
+                    mejor_archivo = archivo_path
+                #if aptitud_acumulada is None: #3540
+                #    aptitud_acumulada = aptitud_incumbente
+                #    mejor_archivo = archivo_path
+                #if aptitud_incumbente < aptitud_acumulada:
+                #    aptitud_acumulada = aptitud_incumbente
+                #    mejor_archivo = archivo_path
+    
+    if mejor_archivo is None:
+        return None, None
+    
+    parametros = dict()
+    with open(mejor_archivo,"r") as archivo:
+        parametros["cantidad_individuos"] = int(lineas[5-1].removeprefix("cantidad_individuos: "))
+        parametros["p_mutacion"] = float(lineas[6-1].removeprefix("p_mutacion: "))
+        
+        cantidad_maxima_generaciones = lineas[7-1].removeprefix("cantidad_maxima_generaciones: ")
+        parametros["cantidad_maxima_generaciones"] = cantidad_maxima_generaciones if cantidad_maxima_generaciones is None else int(cantidad_maxima_generaciones)
+        
+        tiempo_maximo = lineas[8-1].removeprefix("tiempo_maximo: ")
+        parametros["tiempo_maximo"] = tiempo_maximo if tiempo_maximo is None else float(tiempo_maximo)
+        
+        parametros["p_optimizacion_deterministica"] = float(lineas[9-1].removeprefix("p_optimizacion_deterministica: "))
+        parametros["probabilidad_saltar_periodo"] = float(lineas[10-1].removeprefix("probabilidad_saltar_periodo: "))
+        parametros["peso_seleccion_paso"] = float(lineas[11-1].removeprefix("peso_seleccion_paso: "))
+        parametros["peso_seleccion_demanda"] = float(lineas[12-1].removeprefix("peso_seleccion_demanda: "))
+        parametros["peso_mover_periodo"] = float(lineas[13-1].removeprefix("peso_mover_periodo: "))
+        parametros["peso_cambiar_task"] = float(lineas[14-1].removeprefix("peso_cambiar_task: "))
+        parametros["intentos_mutacion"] = int(lineas[15-1].removeprefix("intentos_mutacion: "))
+        parametros["probabilidad_reducir"] = float(lineas[16-1].removeprefix("probabilidad_reducir: "))
+        parametros["probabilidad_completo"] = float(lineas[17-1].removeprefix("probabilidad_completo: "))
+    
+    return parametros, mejor_archivo
 
 def prueba_optimizacion():
     
@@ -3345,26 +3800,39 @@ def prueba_optimizacion():
 
 def main():
     #poblacion = Poblacion(
-    #    n=10
+    #    n=4
     #    , p_saltar_periodo=0.10
     #    , tiempo=None
-    #    , generaciones=5
+    #    , generaciones=1
     #    , intentos_mutacion=10
     #    , probabilidad_mutacion=0.05
     #    , p_optimizacion_deterministica=1
+    #    , id_nombre="prueba"
     #)
     #poblacion.calcular_solucion()
     
-    ind_1 = IndividuoA(inicializar=True)
-    ind_2 = IndividuoA(inicializar=True)
-    hijo, motivo = ind_1.cruce_time_leap(ind_2)
-    print(motivo)
+    #print(poblacion.aptitudes)
+    #print(poblacion.tiempos)
     
-    print(f"Aptitud ind1 {ind_1.aptitud()}")
-    print(f"Aptitud ind2 {ind_2.aptitud()}")
-    print(f"Aptitud hijo {hijo.aptitud()}")
-    hijo.optimizacion_deterministica()
-    print(f"Aptitud hijo {hijo.aptitud()}")
+    #poblacion.guardar()
+    
+    #ind_1 = IndividuoA(inicializar=True)
+    #ind_2 = IndividuoA(inicializar=True)
+    #hijo, motivo = ind_1.cruce_time_leap(ind_2)
+    #print(motivo)
+    
+    #print(f"Aptitud ind1 {ind_1.aptitud()}")
+    #print(f"Aptitud ind2 {ind_2.aptitud()}")
+    #print(f"Aptitud hijo {hijo.aptitud()}")
+    #hijo.optimizacion_deterministica()
+    #print(f"Aptitud hijo {hijo.aptitud()}")
+    
+    #crear resultado de la tesis
+    optimizacion_final_tesis()
+    
+    #figura_poster_cruce()
+    #figura_poster_mutacion()
+    #figura_poster_ejemplo()
     
 if __name__ == "__main__":
     main()

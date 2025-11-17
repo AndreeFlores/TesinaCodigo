@@ -1,4 +1,4 @@
-from algoritmo_genetico import Poblacion
+from algoritmo_genetico import Poblacion, buscar_mejor_parametros
 from itertools import product
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -13,7 +13,8 @@ def worker(item) -> str:
     key, value = item
     key = str(key)
     
-    path = os.path.join("Datos Tesina", "algoritmo genetico",f"{key}.txt")
+    path_base = os.path.join("Datos Tesina", "algoritmo genetico","grid search")
+    path = os.path.join(path_base,f"{key}.txt")
     # ya existe simulacion de estos parametros
     if os.path.exists(path):
         return key
@@ -24,7 +25,7 @@ def worker(item) -> str:
         random_seed=1234
     )
     pob.calcular_solucion()
-    pob.guardar()
+    pob.guardar(path=path_base)
     
     return key
 
@@ -80,7 +81,7 @@ def main(num_workers : int = None):
     }
     items = list(dict_combinaciones.items())
 
-    filename = os.path.join("Datos Tesina", "algoritmo genetico", "grid_items.txt")
+    filename = os.path.join("Datos Tesina", "algoritmo genetico","grid search","parametros", "grid_items.txt")
     os.makedirs(os.path.dirname(filename), exist_ok=True)
 
     # Guardar o leer items desde archivo .txt (JSON)
@@ -126,6 +127,8 @@ def load_items_from_file(fname):
     return [(int(entry[0]), entry[1]) for entry in data]
 
 if __name__ == "__main__":
-    num_workers : int = max(os.cpu_count()-2,1)
+    #num_workers : int = max(os.cpu_count()-2,1)
     
-    main(num_workers=num_workers)
+    #main(num_workers=num_workers)
+    
+    print(buscar_mejor_parametros())

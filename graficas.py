@@ -4,6 +4,8 @@ from Carga_Datos import Datos, str_a_task_mode, task_mode_a_str
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
+from matplotlib.ticker import MaxNLocator
+import os
 
 CUSTOM_COLOR_MAP = ListedColormap(
     [
@@ -12,6 +14,84 @@ CUSTOM_COLOR_MAP = ListedColormap(
         "#009C9F", "#008588", "#006F71", "#00595A", "#004344"
     ]
 )
+
+def buscar_mejor_parametros() -> tuple[dict, str]:
+    """
+    buscar_mejor_parametros - 
+    
+    Devuelve los mejores parámetros y la ubicación de la mejor
+    población encontrada en la búsqueda.
+    
+    Returns
+    -------
+    tuple[dict, str] :
+        Tupla con elementos:
+        * diccionario con los parámetros y sus valores
+        * str con la ubicación de los parámetros
+    """
+    
+    base_dir = os.path.join("Datos Tesina", "algoritmo genetico","grid search")
+    if not os.path.isdir(base_dir):
+        archivos_path = []
+    else:
+        archivos_path = [
+            os.path.join(base_dir, f)
+            for f in os.listdir(base_dir)
+            if f.lower().endswith(".txt") and os.path.isfile(os.path.join(base_dir, f))
+        ]
+    
+    aptitud_acumulada : float = None
+    mejor_archivo : str = None
+    porc_mejora_acumulada : float = None
+    
+    for archivo_path in archivos_path:
+        with open(archivo_path,"r") as archivo:
+            
+            lineas = archivo.readlines()
+            promedio_aptitud_inicio : float = float(lineas[22-1].removeprefix("promedio de aptitud "))
+            promedio_aptitud_final : float = float(lineas[62-1].removeprefix("promedio de aptitud "))
+            porc_mejora = (promedio_aptitud_final - promedio_aptitud_inicio) / promedio_aptitud_inicio
+            #revisa que el archivo es viable
+            if promedio_aptitud_final < promedio_aptitud_inicio:
+                aptitud_incumbente : float = float(lineas[2-1].removeprefix("resultado: "))
+                if porc_mejora_acumulada is None: #4188
+                    porc_mejora_acumulada = porc_mejora
+                    mejor_archivo = archivo_path
+                if porc_mejora < porc_mejora_acumulada:
+                    porc_mejora_acumulada = porc_mejora
+                    mejor_archivo = archivo_path
+                #if aptitud_acumulada is None: #3540
+                #    aptitud_acumulada = aptitud_incumbente
+                #    mejor_archivo = archivo_path
+                #if aptitud_incumbente < aptitud_acumulada:
+                #    aptitud_acumulada = aptitud_incumbente
+                #    mejor_archivo = archivo_path
+    
+    if mejor_archivo is None:
+        return None, None
+    
+    parametros = dict()
+    with open(mejor_archivo,"r") as archivo:
+        parametros["cantidad_individuos"] = int(lineas[5-1].removeprefix("cantidad_individuos: "))
+        parametros["p_mutacion"] = float(lineas[6-1].removeprefix("p_mutacion: "))
+        
+        cantidad_maxima_generaciones = lineas[7-1].removeprefix("cantidad_maxima_generaciones: ")
+        parametros["cantidad_maxima_generaciones"] = cantidad_maxima_generaciones if cantidad_maxima_generaciones is None else int(cantidad_maxima_generaciones)
+        
+        tiempo_maximo = lineas[8-1].removeprefix("tiempo_maximo: ")
+        parametros["tiempo_maximo"] = tiempo_maximo if tiempo_maximo is None else float(tiempo_maximo)
+        
+        parametros["p_optimizacion_deterministica"] = float(lineas[9-1].removeprefix("p_optimizacion_deterministica: "))
+        parametros["probabilidad_saltar_periodo"] = float(lineas[10-1].removeprefix("probabilidad_saltar_periodo: "))
+        parametros["peso_seleccion_paso"] = float(lineas[11-1].removeprefix("peso_seleccion_paso: "))
+        parametros["peso_seleccion_demanda"] = float(lineas[12-1].removeprefix("peso_seleccion_demanda: "))
+        parametros["peso_mover_periodo"] = float(lineas[13-1].removeprefix("peso_mover_periodo: "))
+        parametros["peso_cambiar_task"] = float(lineas[14-1].removeprefix("peso_cambiar_task: "))
+        parametros["intentos_mutacion"] = int(lineas[15-1].removeprefix("intentos_mutacion: "))
+        parametros["probabilidad_reducir"] = float(lineas[16-1].removeprefix("probabilidad_reducir: "))
+        parametros["probabilidad_completo"] = float(lineas[17-1].removeprefix("probabilidad_completo: "))
+    
+    return parametros, mejor_archivo
 
 def task_array_to_dataframe(
         array : np.ndarray
@@ -125,10 +205,18 @@ def grafica_gantt_plt(
         , kwargs_fig : dict = None
         , mostrar_maquinas : list[str] = None
         , subtitulo : str = "Etiqueta: Maquina|Producto|Demanda|task_mode|paso"
+        , mostrar_leyenda : bool = True
+        , size_horizontal : int = 16
+        , size_vertical : int = 8
+        , kwargs_suptitle : dict = None
+        , kwargs_subtitle : dict = None
+        , kwargs_label : dict = None
+        , kwargs_ticks : dict = None
+        , titulo : str = "Gráfica Gantt de tasks"
     ):
 
     fig, ax = plt.subplots(
-        figsize=(16, 8), layout='tight'
+        figsize=(size_horizontal, size_vertical), layout='tight'
     )
     
     task_modes = df["task_mode"].unique()
@@ -178,41 +266,53 @@ def grafica_gantt_plt(
         ax.axvline(x = tl, color="k", linestyle=":")
 
     # Leyenda para los task mode
-    legend_handles = [
-        Patch(color=color_dict[mode], label=str(mode)) for mode in task_modes
-    ]
-    legend = ax.legend(
-        handles=legend_handles
-        , title="task_mode"
-        , loc = "center left"
-        , bbox_to_anchor=(1, 0.5)
-    )
-    legend.set_zorder(2.5)
+    if mostrar_leyenda:
+        legend_handles = [
+            Patch(color=color_dict[mode], label=str(mode)) for mode in task_modes
+        ]
+        legend = ax.legend(
+            handles=legend_handles
+            , title="task_mode"
+            , loc = "center left"
+            , bbox_to_anchor=(1, 0.5)
+        )
+        legend.set_zorder(2.5)
     
     # custom labels
-    ax.set_xlabel("Periodo")
+    if kwargs_label is None:
+        kwargs_label = dict()
+    if kwargs_ticks is None:
+        kwargs_ticks = dict()
+    ax.set_xlabel("Periodo", **kwargs_label)
     ax.set_xticks(ticks=time_leaps)
+    
+    plt.xticks(**kwargs_ticks)
+    plt.yticks(**kwargs_ticks)
+    
     ax.set_xlim(
         left=min_value_x
         ,right=max_value_x
     )
+    ax.set_ylabel("Máquina", **kwargs_label)
     
-    ax.set_ylabel("Máquina")
+    if kwargs_suptitle is None:
+        kwargs_suptitle = dict()
     fig.suptitle(
-        "Gráfica Gantt de tasks"
+        titulo , **kwargs_suptitle
     )
     #subtitulo = "Etiqueta: Maquina|Producto|Demanda|task_mode|paso"  
     
     if makespan is not None:
-        subtitulo = subtitulo + f"\nmakespan: {makespan}"
+        subtitulo = subtitulo + f"makespan: {makespan}\n"
     
     if costo_energia is not None:
-        subtitulo = subtitulo + f"\nCosto de energía: {costo_energia:.2f}"
+        subtitulo = subtitulo + f"Costo de energía: {costo_energia:.2f}"
     
     if subtitulo != "":
         ax.set_title(
             subtitulo
             , loc="left"
+            , **kwargs_subtitle
         )
     ax.invert_yaxis() # To display tasks from top to bottom
     
@@ -263,3 +363,231 @@ def grafica_gantt_plt(
     
     plt.tight_layout()
     plt.show()
+
+def graficas_poblaciones():
+    
+    df = pd.DataFrame(columns=["id","generacion_0","generacion_1","generacion_2"
+        ,"generacion_3","generacion_4","generacion_5","generacion_6"
+        ,"generacion_7","generacion_8","generacion_9","generacion_10"
+        ,"incumbente"
+    ])
+    
+    base_dir = os.path.join("Datos Tesina", "algoritmo genetico","grid search")
+    if not os.path.isdir(base_dir):
+        archivos_path = []
+    else:
+        archivos_path = [
+            os.path.join(base_dir, f)
+            for f in os.listdir(base_dir)
+            if f.lower().endswith(".txt") and os.path.isfile(os.path.join(base_dir, f))
+        ]
+    
+    for archivo_path in archivos_path:
+        fila = dict()
+        
+        with open(archivo_path,"r") as archivo:
+            lineas = archivo.readlines()
+            
+            fila["id"] = str(lineas[1-1].removeprefix("nombre: ").removesuffix("\n"))
+            fila["generacion_0"] = float(lineas[22-1].removeprefix("promedio de aptitud "))
+            fila["generacion_1"] = float(lineas[26-1].removeprefix("promedio de aptitud "))
+            fila["generacion_2"] = float(lineas[30-1].removeprefix("promedio de aptitud "))
+            fila["generacion_3"] = float(lineas[34-1].removeprefix("promedio de aptitud "))
+            fila["generacion_4"] = float(lineas[38-1].removeprefix("promedio de aptitud "))
+            fila["generacion_5"] = float(lineas[42-1].removeprefix("promedio de aptitud "))
+            fila["generacion_6"] = float(lineas[46-1].removeprefix("promedio de aptitud "))
+            fila["generacion_7"] = float(lineas[50-1].removeprefix("promedio de aptitud "))
+            fila["generacion_8"] = float(lineas[54-1].removeprefix("promedio de aptitud "))
+            fila["generacion_9"] = float(lineas[58-1].removeprefix("promedio de aptitud "))
+            fila["generacion_10"] = float(lineas[62-1].removeprefix("promedio de aptitud "))
+            fila["incumbente"] = float(lineas[2-1].removeprefix("resultado: "))
+            
+            df_fila = pd.DataFrame(fila, index=[0])
+            
+            if len(df.index) == 0:
+                df = df_fila
+            else:
+                df : pd.DataFrame = pd.concat([df, df_fila], ignore_index=True)
+    
+    _, mejor_path = buscar_mejor_parametros()
+    
+    #grafica boxplot
+    fig, ax = plt.subplots(
+        figsize=(7, 6), layout='tight'
+    )
+    ax.set_title(
+        f"Box plot mejor individuo\nde cada población revisada"
+        , fontsize=18
+        , fontweight='bold'
+    )
+    ax.boxplot(
+        df["incumbente"]
+        , medianprops = dict(
+            color = "black"
+            , linestyle = "--"
+        )
+    )
+    ax.set_xlim(0.5,2)
+    
+    #mejor
+    with open(mejor_path,"r") as archivo:
+        lineas = archivo.readlines()
+        incumbente = float(lineas[2-1].removeprefix("resultado: "))
+    mejor_punto = ax.plot(1,incumbente,"or")
+    legend = ax.legend(
+        [mejor_punto[0]]
+        , [f"Mejor individuo\ncon los\nparámetros\nseleccionados"]
+        , loc="upper right", edgecolor = "black"
+        , fontsize = 16
+    )
+    legend.get_frame().set_alpha(None)
+    legend.get_frame().set_facecolor((0, 0, 0, 0))
+    #plt.tight_layout()
+    plt.xticks([])
+    ax.set_ylabel("Mejor individuo de población", fontsize=14, fontweight='bold')
+    ax.yaxis.set_tick_params(labelsize=12)
+    
+    plt.xticks(fontweight="bold", fontsize = 14)
+    plt.yticks(fontweight="bold", fontsize = 14)
+    
+    fig.savefig(
+        fname=os.path.join("Datos Tesina","Figuras_Tablas","7_0","boxplot.png")
+        , transparent=True
+    )
+    plt.show()
+    
+    #grafica líneas
+    fig, ax = plt.subplots(
+        figsize=(11, 5), layout='tight'
+    )
+
+    ax.set_title(
+        "Promedio de aptitud vs generación por población"
+        , fontsize=22
+        , fontweight='bold'
+    )
+    ax.set_xlabel("Generación", fontsize=16, fontweight='bold')
+    ax.set_ylabel("Promedio de aptitud", fontsize=16, fontweight='bold')
+    
+    id_mejor = os.path.basename(mejor_path).removesuffix(".txt")
+    for idx, row in df.iterrows():
+        cols = [f"generacion_{i}" for i in range(11)]
+        valores = row[cols].to_numpy(dtype=float)
+        
+        #busca mejor
+        id = row["id"]
+        if id == id_mejor:
+            mejor_linea = ax.plot(valores, alpha=1, color="black")
+        else:
+            ax.plot(valores, alpha=0.02)
+            
+    #plt.tight_layout()
+    legend = ax.legend(
+        [mejor_linea[0]]
+        , [f"Población seleccionada"]
+        , loc="upper right", edgecolor = "black"
+        , fontsize = 12
+    )
+    legend.get_frame().set_alpha(None)
+    legend.get_frame().set_facecolor((0, 0, 0, 0))
+    plt.xticks([i for i in range(11)])
+    
+    plt.xticks(fontweight="bold", fontsize = 14)
+    plt.yticks(fontweight="bold", fontsize = 14)
+            
+    fig.savefig(
+        fname=os.path.join("Datos Tesina","Figuras_Tablas","7_0","lineas.png")
+        , transparent=True
+    )
+    plt.show()
+
+def grafica_incumbente(archivo_nombre : str):
+    base_dir = os.path.join("Datos Tesina", "algoritmo genetico","Tesis")
+    archivo_nombre = os.path.join(base_dir,archivo_nombre)
+    
+    promedio_aptitudes = []
+    promedio_makespans = []
+    promedio_costos = []
+    
+    #buscar valores
+    with open(archivo_nombre,"r") as archivo:
+        archivo_lineas = archivo.readlines()
+        
+        linea_aptitud = None
+        linea_makespan = None
+        linea_costo = None
+        
+        for index, linea in enumerate(archivo_lineas):
+            revisar_linea = linea.removesuffix("\n")
+            if revisar_linea == "Valores Generaciones":
+                linea_aptitud = index
+            if revisar_linea == "Valores Generaciones makespan":
+                linea_makespan = index
+            if revisar_linea == "Valores Generaciones costo":
+                linea_costo = index
+        
+        i = 1
+        while True:
+            linea = archivo_lineas[linea_aptitud + i]
+            if not linea.startswith("Generacion "):
+                break
+            if (linea_aptitud + i) > len(archivo_lineas):
+                break
+            
+            promedio_aptitud = float(archivo_lineas[linea_aptitud + i + 2].removeprefix("promedio de aptitud ").removesuffix("\n"))
+            promedio_aptitudes.append(promedio_aptitud)
+            
+            promedio_makespan = float(archivo_lineas[linea_makespan + i + 2].removeprefix("promedio de makespan ").removesuffix("\n"))
+            promedio_makespans.append(promedio_makespan)
+            
+            promedio_costo = float(archivo_lineas[linea_costo + i + 2].removeprefix("promedio de costo ").removesuffix("\n"))
+            promedio_costos.append(promedio_costo)
+            i = i + 4
+         
+    #grafica linea
+    fig, ax = plt.subplots(
+        figsize=(14, 6), layout='tight'
+    )
+    x = [g for g in range(len(promedio_aptitudes))]
+    
+    ax.step(
+        x=x
+        , y=promedio_aptitudes
+        , label="aptitud"
+        , where="post"
+        , color = "black"
+    )
+    
+    ax.set_title(
+        "Progreso de población simulada con parámetros seleccionados"
+        , fontsize=22
+        , fontweight='bold'
+    )
+    
+    #ax.set_ylim(0,1400)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel("Generación", fontsize=18,fontweight="bold")
+    ax.set_ylabel("Promedio por generación", fontsize=18,fontweight="bold")
+    
+    #legend = ax.legend(loc="upper right"
+    #    , edgecolor = "black"
+    #    , fontsize = 16
+    #)
+    #legend.get_frame().set_alpha(None)
+    #legend.get_frame().set_facecolor((0, 0, 0, 0))
+    
+    plt.xticks(fontweight="bold", fontsize = 16)
+    plt.yticks(fontweight="bold", fontsize = 16)
+    #plt.legend(fontsize=16)
+    fig.savefig(
+        fname=os.path.join("Datos Tesina","Figuras_Tablas","7_0","aptitud_mejor.png")
+        , transparent=True
+    )
+    plt.show()
+  
+def main():
+    graficas_poblaciones()
+    #grafica_incumbente("tesis_2.txt")
+
+if __name__ == "__main__":
+    main()
