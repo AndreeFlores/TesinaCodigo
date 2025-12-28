@@ -501,9 +501,12 @@ def graficas_poblaciones():
     )
     plt.show()
 
-def grafica_incumbente(archivo_nombre : str):
+def grafica_incumbente(
+        path_nombre_datos : str
+        , path_fig : str
+    ):
     base_dir = os.path.join("Datos Tesina", "algoritmo genetico","Tesis")
-    archivo_nombre = os.path.join(base_dir,archivo_nombre)
+    archivo_nombre = os.path.join(base_dir,path_nombre_datos)
     
     promedio_aptitudes = []
     promedio_makespans = []
@@ -567,7 +570,7 @@ def grafica_incumbente(archivo_nombre : str):
     #ax.set_ylim(0,1400)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlabel("Generación", fontsize=18,fontweight="bold")
-    ax.set_ylabel("Promedio por generación", fontsize=18,fontweight="bold")
+    ax.set_ylabel("Promedio de aptitud", fontsize=18,fontweight="bold")
     
     #legend = ax.legend(loc="upper right"
     #    , edgecolor = "black"
@@ -579,15 +582,21 @@ def grafica_incumbente(archivo_nombre : str):
     plt.xticks(fontweight="bold", fontsize = 16)
     plt.yticks(fontweight="bold", fontsize = 16)
     #plt.legend(fontsize=16)
-    fig.savefig(
-        fname=os.path.join("Datos Tesina","Figuras_Tablas","7_0","aptitud_mejor.png")
-        , transparent=True
-    )
+    
+    if path_fig.endswith(".png"):
+        
+        
+        fig.savefig(
+            fname=path_fig
+            , transparent=True
+        )
     plt.show()
   
 def main():
-    graficas_poblaciones()
-    #grafica_incumbente("tesis_2.txt")
+    #graficas_poblaciones()
+    #grafica_incumbente("tesis_2.txt",os.path.join("Datos Tesina","Figuras_Tablas","Poster","aptitud_mejor.png"))
+    
+    grafica_incumbente("tesis_4.txt",os.path.join("Datos Tesina","Figuras_Tablas","7_0","aptitud_mejor.png"))
 
 if __name__ == "__main__":
     main()

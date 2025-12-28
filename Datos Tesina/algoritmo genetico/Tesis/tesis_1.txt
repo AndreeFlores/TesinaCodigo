@@ -1,0 +1,59 @@
+nombre: tesis_1
+resultado: 945.77229391
+makespan=890.0,energia=55.77229391
+Parámetros
+cantidad_individuos: 10
+p_mutacion: 0.01
+cantidad_maxima_generaciones: 2
+tiempo_maximo: 18000
+p_optimizacion_deterministica: 0
+probabilidad_saltar_periodo: 0.05
+peso_seleccion_paso: 2
+peso_seleccion_demanda: 4
+peso_mover_periodo: 4
+peso_cambiar_task: 1
+intentos_mutacion: 2
+probabilidad_reducir: 0.66
+probabilidad_completo: 0.33
+
+Valores Generaciones
+Generacion 0
+aptitudes [923.619388208, 983.005036666, 988.98301967, 939.346753944, 970.7828795519999, 978.02025043, 986.385966194, 965.172550478, 976.710594966, 931.677175082]
+promedio de aptitud 964.370361519
+tiempo de creacion de generacion (segundos) 0.7364
+Generacion 1
+aptitudes [968.98514429, 974.705990766, 937.536226324, 957.708661656, 950.686491028, 956.005251278, 975.385322938, 987.462155124, 944.822276162, 949.19963142]
+promedio de aptitud 960.2497150986001
+tiempo de creacion de generacion (segundos) 59.3439
+Generacion 2
+aptitudes [971.6552662940001, 977.516435734, 945.77229391, 960.742892774, 968.632505042, 984.914245966, 975.9075776560001, 991.308402808, 973.15835734, 986.039684584]
+promedio de aptitud 973.5647662108
+tiempo de creacion de generacion (segundos) 58.2419
+
+Valores Generaciones makespan
+Generacion 0
+makespan [869.0, 925.0, 933.0, 880.0, 908.0, 922.0, 933.0, 909.0, 922.0, 868.0]
+promedio de makespan 906.9
+tiempo de creacion de generacion (segundos) 0.7364
+Generacion 1
+makespan [908.0, 922.0, 885.0, 904.0, 889.0, 899.0, 922.0, 933.0, 890.0, 891.0]
+promedio de makespan 904.3
+tiempo de creacion de generacion (segundos) 59.3439
+Generacion 2
+makespan [911.0, 918.0, 890.0, 907.0, 913.0, 931.0, 915.0, 932.0, 922.0, 933.0]
+promedio de makespan 917.2
+tiempo de creacion de generacion (segundos) 58.2419
+
+Valores Generaciones costo
+Generacion 0
+costo [54.619388208, 58.005036665999995, 55.983019670000004, 59.346753944, 62.782879552, 56.02025043, 53.385966194000005, 56.172550478000005, 54.710594965999995, 63.677175082]
+promedio de costo 57.470361518999994
+tiempo de creacion de generacion (segundos) 0.7364
+Generacion 1
+costo [60.98514429, 52.705990766, 52.536226324, 53.708661656000004, 61.686491028, 57.005251277999996, 53.385322938, 54.462155124000006, 54.822276161999994, 58.199631419999996]
+promedio de costo 55.949715098599995
+tiempo de creacion de generacion (segundos) 59.3439
+Generacion 2
+costo [60.655266294, 59.516435734, 55.77229391, 53.742892774, 55.632505042000005, 53.914245965999996, 60.907577656, 59.308402808, 51.158357339999995, 53.039684584]
+promedio de costo 56.3647662108
+tiempo de creacion de generacion (segundos) 58.2419

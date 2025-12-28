@@ -164,37 +164,37 @@ class Datos:
         self.socket_price = np.array(socket)
         
         #crear diccionario de productos
-        """
-        self.products : {
-            product_0 : {
-                "request" : d_0, #el producto product_0 tiene una demanda de d_0 unidades
-                "tasks" : {
-                    {
-                        "task_0" : r_0, #repite r_0 veces la actividad
-                        "order" : 0
-                    }, 
-                    ...
-                    {
-                        "task_m" : r_m,
-                        "order" : m
-                    }
-                }
-            }, ...
-            product_n : {
-                "request" : d_n,
-                "tasks" : {
-                    {
-                        "task_0" : r_0, #repite r_0 veces la actividad
-                        "order" : 0
-                    }, 
-                    ...
-                    {
-                        "task_m" : r_m,
-                        "order" : m
-                    }
-            }
-        }
-        """
+
+        # self.products : {
+        #     product_0 : {
+        #         "request" : d_0, #el producto product_0 tiene una demanda de d_0 unidades
+        #         "tasks" : {
+        #             {
+        #                 "task_0" : r_0, #repite r_0 veces la actividad
+        #                 "order" : 0
+        #             }, 
+        #             ...
+        #             {
+        #                 "task_m" : r_m,
+        #                 "order" : m
+        #             }
+        #         }
+        #     }, ...
+        #     product_n : {
+        #         "request" : d_n,
+        #         "tasks" : {
+        #             {
+        #                 "task_0" : r_0, #repite r_0 veces la actividad
+        #                 "order" : 0
+        #             }, 
+        #             ...
+        #             {
+        #                 "task_m" : r_m,
+        #                 "order" : m
+        #             }
+        #     }
+        # }
+        
         self.products = dict()
         
         for p in datos['products']:

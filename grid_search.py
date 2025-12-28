@@ -4,6 +4,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 import json
+import pandas as pd
 
 def worker(item) -> str:
     """
@@ -126,9 +127,161 @@ def load_items_from_file(fname):
         data = json.load(f)
     return [(int(entry[0]), entry[1]) for entry in data]
 
+def resultados():
+    """
+    resultados - 
+    
+    Crea una dataframe con la información del grid search
+    """
+    base = os.path.join("Datos Tesina","algoritmo genetico","grid search")
+    filename_parametros = os.path.join(base, "parametros", "grid_items.txt")
+    os.makedirs(os.path.dirname(filename_parametros), exist_ok=True)
+
+    if os.path.exists(filename_parametros):
+        try:
+            items = load_items_from_file(fname=filename_parametros)
+            print(f"Leídos {len(items)} items desde {filename_parametros}")
+        except Exception as e:
+            print(f"Error leyendo {filename_parametros}: {e}. Se usarán las combinaciones generadas y se reescribirá el archivo.")
+            save_items_to_file(items,fname=filename_parametros)
+    else:
+        raise FileExistsError("Archivo de parametros no existe, utiliza main()")
+
+    df = pd.DataFrame(
+        columns=["Simulacion", "cantidad_individuos", "p_mutacion"
+        , "cantidad_maxima_generaciones", "tiempo_maximo", "p_optimizacion_deterministica"
+        , "probabilidad_saltar_periodo", "peso_seleccion_paso", "peso_seleccion_demanda"
+        , "peso_mover_periodo", "peso_cambiar_task", "intentos_mutacion"
+        , "probabilidad_reducir", "probabilidad_completo"
+        , "Generacion 0", "Generacion 1", "Generacion 2", "Generacion 3", "Generacion 4"
+        , "Generacion 5", "Generacion 6", "Generacion 7", "Generacion 8", "Generacion 9"
+        , "Generacion 10", "Valor_Incumbente"
+    ])
+
+    for simulacion in items:
+        filename = os.path.join(base,f"{simulacion[0]}.txt")
+        with open(filename,"r", encoding="utf-8") as archivo:
+            fila = dict()
+
+            lineas = archivo.readlines()
+
+            # Inicializar campos de Generacion (Generacion 0...10)
+            for i in range(11):
+                fila[f"Generacion {i}"] = None
+
+            current_gen = None
+
+            # Parsear líneas buscando prefijos conocidos
+            for raw in lineas:
+                s = raw.strip()
+                if not s:
+                    continue
+
+                if s.startswith("nombre: "):
+                    try:
+                        fila["Simulacion"] = int(s.removeprefix("nombre: ").strip())
+                    except Exception:
+                        fila["Simulacion"] = s.removeprefix("nombre: ").strip()
+
+                elif s.startswith("resultado: "):
+                    fila["Valor_Incumbente"] = float(s.removeprefix("resultado: ").strip())
+
+                elif s.startswith("cantidad_individuos: "):
+                    fila["cantidad_individuos"] = int(s.removeprefix("cantidad_individuos: ").strip())
+
+                elif s.startswith("p_mutacion: "):
+                    fila["p_mutacion"] = float(s.removeprefix("p_mutacion: ").strip())
+
+                elif s.startswith("cantidad_maxima_generaciones: "):
+                    fila["cantidad_maxima_generaciones"] = int(s.removeprefix("cantidad_maxima_generaciones: ").strip())
+
+                elif s.startswith("tiempo_maximo: "):
+                    fila["tiempo_maximo"] = int(s.removeprefix("tiempo_maximo: ").strip())
+
+                elif s.startswith("p_optimizacion_deterministica: "):
+                    fila["p_optimizacion_deterministica"] = float(s.removeprefix("p_optimizacion_deterministica: ").strip())
+
+                elif s.startswith("probabilidad_saltar_periodo: "):
+                    fila["probabilidad_saltar_periodo"] = float(s.removeprefix("probabilidad_saltar_periodo: ").strip())
+
+                elif s.startswith("peso_seleccion_paso: "):
+                    fila["peso_seleccion_paso"] = int(s.removeprefix("peso_seleccion_paso: ").strip())
+
+                elif s.startswith("peso_seleccion_demanda: "):
+                    fila["peso_seleccion_demanda"] = int(s.removeprefix("peso_seleccion_demanda: ").strip())
+
+                elif s.startswith("peso_mover_periodo: "):
+                    fila["peso_mover_periodo"] = int(s.removeprefix("peso_mover_periodo: ").strip())
+
+                elif s.startswith("peso_cambiar_task: "):
+                    fila["peso_cambiar_task"] = int(s.removeprefix("peso_cambiar_task: ").strip())
+
+                elif s.startswith("intentos_mutacion: "):
+                    fila["intentos_mutacion"] = int(s.removeprefix("intentos_mutacion: ").strip())
+
+                elif s.startswith("probabilidad_reducir: "):
+                    fila["probabilidad_reducir"] = float(s.removeprefix("probabilidad_reducir: ").strip())
+
+                elif s.startswith("probabilidad_completo: "):
+                    fila["probabilidad_completo"] = float(s.removeprefix("probabilidad_completo: ").strip())
+
+                # Bloque de generaciones: detectar índice y luego el promedio de aptitud
+                elif s.startswith("Generacion "):
+                    parts = s.split()
+                    try:
+                        current_gen = int(parts[1])
+                    except Exception:
+                        current_gen = None
+
+                elif s.startswith("promedio de aptitud"):
+                    # formato esperado: "promedio de aptitud <valor>"
+                    try:
+                        val = float(s.removeprefix("promedio de aptitud ").strip())
+                    except Exception:
+                        # fallback: tomar el último token
+                        try:
+                            val = float(s.split()[-1])
+                        except Exception:
+                            val = None
+
+                    if current_gen is not None:
+                        fila[f"Generacion {current_gen}"] = val
+
+            # Añadir la fila al DataFrame
+            df_fila = pd.DataFrame(data=fila, index=[0])
+            
+            if len(df.index) == 0:
+                df = df_fila
+            else:
+                df : pd.DataFrame = pd.concat([df, df_fila], ignore_index=True)
+            print(f"Cantidad de filas {len(df.index)}")
+    
+    df["Porc_Mejora_Aptitud"] = (df["Generacion 10"] - df["Generacion 0"]) / df["Generacion 0"]
+    df["Hubo_Mejora"] = df["Generacion 10"] < df["Generacion 0"]
+    
+    path_csv = os.path.join("Datos Tesina","algoritmo genetico","grid search","resultados","analisis_grid_search.csv")
+    os.makedirs(os.path.dirname(path_csv), exist_ok=True)
+    
+    df.to_csv(
+        os.path.join(path_csv)
+        , index=False
+        , columns=["Simulacion", "cantidad_individuos", "p_mutacion"
+            , "cantidad_maxima_generaciones", "tiempo_maximo", "p_optimizacion_deterministica"
+            , "probabilidad_saltar_periodo", "peso_seleccion_paso", "peso_seleccion_demanda"
+            , "peso_mover_periodo", "peso_cambiar_task", "intentos_mutacion"
+            , "probabilidad_reducir", "probabilidad_completo"
+            , "Generacion 0", "Generacion 1", "Generacion 2", "Generacion 3", "Generacion 4"
+            , "Generacion 5", "Generacion 6", "Generacion 7", "Generacion 8", "Generacion 9"
+            , "Generacion 10", "Valor_Incumbente", "Hubo_Mejora", "Porc_Mejora_Aptitud"
+        ]
+        , encoding="utf-8"
+    )
+    
 if __name__ == "__main__":
     #num_workers : int = max(os.cpu_count()-2,1)
     
     #main(num_workers=num_workers)
     
-    print(buscar_mejor_parametros())
+    #print(buscar_mejor_parametros())
+    
+    resultados()

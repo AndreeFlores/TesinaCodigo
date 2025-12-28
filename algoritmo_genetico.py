@@ -3675,6 +3675,11 @@ def figura_poster_ejemplo():
     
 def optimizacion_final_tesis():
     
+    dict_param, ubicacion = buscar_mejor_parametros()
+    print("Mejor simulación:", ubicacion)
+    print("Parámetros",)
+    
+    """ bug en la lectura de parametros
     poblacion = Poblacion(
         random_seed=12345
         , id_nombre="tesis_2" #tesis_1 #tesis_0
@@ -3689,6 +3694,42 @@ def optimizacion_final_tesis():
         , prob_mutacion_mover_periodo_reducir=0.66
         , prob_mutacion_mover_periodo_completa=0.33
         , tiempo=60*60*5
+    )
+    """
+    
+    #poblacion = Poblacion(
+    #    random_seed=12345
+    #    , id_nombre="tesis_3"
+    #    , n=20
+    #    , probabilidad_mutacion=dict_param["p_mutacion"]
+    #    , p_optimizacion_deterministica=dict_param["p_optimizacion_deterministica"]
+    #    , p_saltar_periodo=dict_param["probabilidad_saltar_periodo"]
+    #    , peso_seleccion_paso=dict_param["peso_seleccion_paso"]
+    #    , peso_seleccion_demanda=dict_param["peso_seleccion_demanda"]
+    #    , peso_mutacion_mover_periodo=dict_param["peso_mover_periodo"]
+    #    , peso_mutacion_cambiar_task=dict_param["peso_cambiar_task"]
+    #    , intentos_mutacion=dict_param["intentos_mutacion"]
+    #    , prob_mutacion_mover_periodo_reducir=dict_param["probabilidad_reducir"]
+    #    , prob_mutacion_mover_periodo_completa=dict_param["probabilidad_completo"]
+    #    , tiempo=60*60*10
+    #)
+    
+    poblacion = Poblacion(
+        random_seed=12345
+        , id_nombre="tesis_4"
+        , n=20
+        , probabilidad_mutacion=dict_param["p_mutacion"]
+        , p_optimizacion_deterministica=dict_param["p_optimizacion_deterministica"]
+        , p_saltar_periodo=dict_param["probabilidad_saltar_periodo"]
+        , peso_seleccion_paso=dict_param["peso_seleccion_paso"]
+        , peso_seleccion_demanda=dict_param["peso_seleccion_demanda"]
+        , peso_mutacion_mover_periodo=dict_param["peso_mover_periodo"]
+        , peso_mutacion_cambiar_task=dict_param["peso_cambiar_task"]
+        , intentos_mutacion=dict_param["intentos_mutacion"]
+        , prob_mutacion_mover_periodo_reducir=dict_param["probabilidad_reducir"]
+        , prob_mutacion_mover_periodo_completa=dict_param["probabilidad_completo"]
+        , generaciones=200
+        , tiempo=None
     )
     
     poblacion.calcular_solucion(verbose=True)
@@ -3751,6 +3792,8 @@ def buscar_mejor_parametros() -> tuple[dict, str]:
     
     parametros = dict()
     with open(mejor_archivo,"r") as archivo:
+        lineas = archivo.readlines()
+            
         parametros["cantidad_individuos"] = int(lineas[5-1].removeprefix("cantidad_individuos: "))
         parametros["p_mutacion"] = float(lineas[6-1].removeprefix("p_mutacion: "))
         
@@ -3826,6 +3869,9 @@ def main():
     #print(f"Aptitud hijo {hijo.aptitud()}")
     #hijo.optimizacion_deterministica()
     #print(f"Aptitud hijo {hijo.aptitud()}")
+    
+    dict_param, ubicacion = buscar_mejor_parametros()
+    print(dict_param, ubicacion)
     
     #crear resultado de la tesis
     optimizacion_final_tesis()
