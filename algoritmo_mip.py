@@ -25,10 +25,10 @@ class ModeloMIPCallback:
         
         self.se_encontro_mejor = False
     
-    def _timestamp() -> str:
+    def _timestamp(self) -> str:
         return datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     
-    def _timestr() -> str:
+    def _timestr(self) -> str:
         return datetime.now().strftime("%H:%M:%S")
 
     def _filename_sol(self) -> str:
@@ -91,6 +91,12 @@ class ModeloMIPCallback:
             except Exception as e:
                 print(f"[Callback][{self._timestr()}] Error guardando modelo inicial: {e}")
         
+        #obtener el nuevo valor del objetivo
+        try:
+            valor_objetivo =  model.cbGet(gp.GRB.callback.MIPSOL_OBJ)
+        except Exception:
+            valor_objetivo = None
+            
         # inicializar tiempo de inicio de la sesión la primera vez
         if self.runtime_start is None:
             try:
@@ -101,8 +107,6 @@ class ModeloMIPCallback:
         # al encontrar una solucion mejor
         if where == gp.GRB.Callback.MIPSOL:
             #imprime el progeso de la solucion
-            #obtener el nuevo valor del objetivo
-            valor_objetivo = model.cbGet(gp.GRB.callback.MIPSOL_OBJ)
             
             #imprimir valor incumbente
             if self.objetivo_previo is None:
@@ -127,8 +131,8 @@ class ModeloMIPCallback:
                 runtime = model.cbGet(gp.GRB.Callback.RUNTIME)
             except Exception:
                 runtime = None
-            
-            if runtime is not None:
+             
+            if runtime is not None and valor_objetivo is not None:
                 diferencia = runtime - (0.0 if self.runtime_start is None else self.runtime_start)
             
                 if diferencia >= self.tiempo_checkpoint:
@@ -136,9 +140,11 @@ class ModeloMIPCallback:
                     try:
                         if model.SolCount > 0:
                             self._save_sol_file()
+                            model.terminate() #terminar la busqueda de la solucion solo cuando se tiene por lo menos una solucion
+                        else:
+                            print(f"[Callback][{self._timestr()}] Error guardando checkpoint: No hay soluciones, continuando busqueda")
                     except Exception as e:
-                        print(f"[Callback][{self._timestr()}] Error guardando checkpoint: {e}")
-                    model.terminate() #terminar la busqueda de la solucion
+                        print(f"[Callback][{self._timestr()}] Error guardando checkpoint: {e}")                    
                     
 class ModeloMIP:
     
@@ -190,6 +196,8 @@ class ModeloMIP:
         cambio_turnos_np = np.array(cambio_turnos)
         
         for producto, demanda, paso, task, task_mode, maquina, intervalo in self.datos.iterar_completo():
+            producto_text = producto.encode("ascii", "ignore").decode()
+            
             energia_requerida =  self.datos.energia_task_intervalo(
                 task=task, task_mode=task_mode, intervalo=intervalo
             )
@@ -203,7 +211,7 @@ class ModeloMIP:
                 periodo_final = periodo + intervalo
                 
                 lista_df.append({
-                    "Producto" : producto
+                    "Producto" : producto_text
                     , "Demanda" : demanda
                     , "Paso" : paso
                     , "Task" : task
@@ -320,11 +328,14 @@ class ModeloMIP:
         if series_linexp_energia_utilizada.shape != energia_disponible.shape:
             raise ValueError("Error en el tamaño de las matrices de expresiones de energia")
 
+        self.restriccion_energia_utilizada = list()
         for i in range(energia_disponible.shape[0]):
-            self.modelo.addConstr(
+            restriccion = self.modelo.addConstr(
                 series_linexp_energia_utilizada.iloc[i] == energia_disponible[i]
                 , name=f"Restriccion_energia_utilizada[{i}]"
             )
+            
+            self.restriccion_energia_utilizada.append(restriccion)
     
     def crear_restriccion_flujo_produccion(self):
         """
@@ -380,17 +391,18 @@ class ModeloMIP:
         ).groupby(["Producto", "Demanda", "Paso", "Task", "Maquina", "Task_Mode", "Intervalo"]).sum()[["Periodo_Procesado","Hay_Produccion"]]
         
         df_agrupado_intervalo_cero = df_agrupado.xs(key=0, level="Intervalo")["Hay_Produccion"]
+        df_agrupado_intervalo_cero = pd.DataFrame(df_agrupado_intervalo_cero)
         
         df_agrupado_shift = df_agrupado.groupby(level=["Producto", "Demanda", "Paso", "Task", "Maquina", "Task_Mode"]).shift(1).dropna(axis=0, how="any")
         df_agrupado = df_agrupado.merge(df_agrupado_shift, how="inner", left_index=True, right_index=True, suffixes=('','_anterior'))
         
-        df_agrupado.join(df_agrupado_intervalo_cero, on=["Producto", "Demanda", "Paso", "Task", "Maquina", "Task_Mode"], rsuffix="_rhs")
+        df_agrupado = df_agrupado.join(df_agrupado_intervalo_cero, on=["Producto", "Demanda", "Paso", "Task", "Maquina", "Task_Mode"], rsuffix="_intervalo_cero")
         
         self.restriccion_flujo_activacion = gppd.add_constrs(
             self.modelo
             , (df_agrupado["Periodo_Procesado"] - df_agrupado["Periodo_Procesado_anterior"])
             , gp.GRB.EQUAL
-            , df_agrupado["Hay_Produccion_anterior"]
+            , df_agrupado["Hay_Produccion_intervalo_cero"]
             , name="Activacion_intervalos"
         )
     
@@ -416,18 +428,23 @@ class ModeloMIP:
         
         Crear la restruccion del deadline para cada producto-demanda
         """
+        self.restriccion_deadline = list()
         
         #restriccion ecuacion 18
         for producto, demanda, periodo_limite in self.datos.iterar_deadlines():
-            df_filtrado = self.variables_df.loc[(producto,demanda,slice(None),slice(None),slice(None),slice(None),slice(None),slice(None)),:]
+            producto_text = producto.encode("ascii", "ignore").decode()
             
-            gppd.add_constrs(
+            df_filtrado = self.variables_df.loc[(producto_text,demanda,slice(None),slice(None),slice(None),slice(None),slice(None),slice(None)),:]
+            
+            restricciones = gppd.add_constrs(
                 self.modelo
                 , (df_filtrado["Hay_Produccion"] * df_filtrado["Periodo_Valor"])
                 , gp.GRB.LESS_EQUAL
                 , periodo_limite
                 , name="Deadline"
             )
+            
+            self.restriccion_deadline.append(restricciones)
     
     def crear_restriccion_mismo_turno(self):
         """
@@ -439,7 +456,7 @@ class ModeloMIP:
         #restriccion ecuacion 19
         self.restriccion_turno =  gppd.add_constrs(
             self.modelo
-            , self.variables_df.loc[self.variables_df["Es_Viable_Periodo_Final"]]["Hay_Produccion"]
+            , self.variables_df.loc[~(self.variables_df["Es_Viable_Periodo_Final"])]["Hay_Produccion"]
             , gp.GRB.EQUAL
             , 0
             , name="Es_Valido_Mismo_Turno"
@@ -485,8 +502,8 @@ class ModeloMIP:
             
             #para alterar la busqueda
             self.modelo.setParam("Seed"
-                , np.random.random_integers(0,2**30-1
-            ))
+                , np.random.randint(0,2**30-1)
+            )
     
     def guardar_variables(self):
         """
@@ -501,16 +518,169 @@ class ModeloMIP:
         
         df = pd.DataFrame(datos_variables, columns=['Variable', 'Value'])
         df.to_csv(os.path.join(self.path_base,"variables.csv"), index=False)
+    
+    def debug_modelo(self):
         
+        self.modelo.update()
+        
+        with open(os.path.join(self.path_base,"debug_modelo_objetivo_makespan.txt"),"w") as f:
+            f.write(f"Nombre: Makespan_objetivo\n")
+            f.write(f"Ecuacion tesina: 9\n")
+            f.write("Expresion:\n")
+            
+            expresion = str(self.modelo.getObjective(0))
+            n = 150
+            chunks = [expresion[i:i+n] for i in range(0, len(expresion), n)]
+            
+            for chunk in chunks:
+                f.write(f"{chunk}\n")
+        
+        with open(os.path.join(self.path_base,"debug_modelo_objetivo_costo_energia.txt"),"w") as f:
+            f.write(f"Nombre: Makespan_objetivo\n")
+            f.write(f"Ecuacion tesina: 10\n")
+            f.write("Expresion:\n")
+            
+            expresion = str(self.modelo.getObjective(1))
+            n = 150
+            chunks = [expresion[i:i+n] for i in range(0, len(expresion), n)]
+            
+            for chunk in chunks:
+                f.write(f"{chunk}\n")
+        
+        with open(os.path.join(self.path_base,"debug_modelo_restriccion_makespan.txt"),"w") as f:
+            f.write(f"Nombre: Restriccion_makespan\n")
+            f.write(f"Ecuacion tesina: 12\n")
+            f.write("Expresion LHS:\n")
+            
+            restriccion = self.restriccion_makespan.iloc[1]
+            expresion = str(self.modelo.getRow(restriccion))
+            n = 150
+            chunks = [expresion[i:i+n] for i in range(0, len(expresion), n)]
+            
+            for chunk in chunks:
+                f.write(f"{chunk}\n")
+            f.write(f"Sense: {restriccion.Sense}\n")
+            f.write(f"RHS: {restriccion.RHS}\n")
+        
+        with open(os.path.join(self.path_base,"debug_modelo_restriccion_energia_utilizada.txt"),"w") as f:
+            f.write(f"Nombre: Restriccion_energia_utilizada\n")
+            f.write(f"Ecuacion tesina: 13\n")
+            f.write("Expresion LHS:\n")
+            
+            restriccion = self.restriccion_energia_utilizada[0]
+            expresion = str(self.modelo.getRow(restriccion))
+            n = 150
+            chunks = [expresion[i:i+n] for i in range(0, len(expresion), n)]
+            
+            for chunk in chunks:
+                f.write(f"{chunk}\n")
+            f.write(f"Sense: {restriccion.Sense}\n")
+            f.write(f"RHS: {restriccion.RHS}\n")
+        
+        with open(os.path.join(self.path_base,"debug_modelo_Restriccion_solo_un_primer_intervalo.txt"),"w") as f:
+            f.write(f"Nombre: Restriccion_solo_un_primer_intervalo\n")
+            f.write(f"Ecuacion tesina: 14\n")
+            f.write("Expresion LHS:\n")
+            
+            restriccion = self.restriccion_flujo_primer_intervalo.iloc[1]
+            expresion = str(self.modelo.getRow(restriccion))
+            n = 150
+            chunks = [expresion[i:i+n] for i in range(0, len(expresion), n)]
+            
+            for chunk in chunks:
+                f.write(f"{chunk}\n")
+            f.write(f"Sense: {restriccion.Sense}\n")
+            f.write(f"RHS: {restriccion.RHS}\n")
+        
+        with open(os.path.join(self.path_base,"debug_modelo_Restriccion_periodos_entre_pasos.txt"),"w") as f:
+            f.write(f"Nombre: Restriccion_periodos_entre_pasos\n")
+            f.write(f"Ecuacion tesina: 15\n")
+            f.write("Expresion LHS:\n")
+            
+            restriccion = self.restriccion_flujo_pasos.iloc[1]
+            expresion = str(self.modelo.getRow(restriccion))
+            n = 150
+            chunks = [expresion[i:i+n] for i in range(0, len(expresion), n)]
+            
+            for chunk in chunks:
+                f.write(f"{chunk}\n")
+            f.write(f"Sense: {restriccion.Sense}\n")
+            f.write(f"RHS: {restriccion.RHS}\n")
+        
+        with open(os.path.join(self.path_base,"debug_modelo_Restriccion_activacion_intervalos.txt"),"w") as f:
+            f.write(f"Nombre: Restriccion_activacion_intervalos\n")
+            f.write(f"Ecuacion tesina: 16\n")
+            f.write("Expresion LHS:\n")
+            
+            restriccion = self.restriccion_flujo_activacion.iloc[1]
+            expresion = str(self.modelo.getRow(restriccion))
+            n = 150
+            chunks = [expresion[i:i+n] for i in range(0, len(expresion), n)]
+            
+            for chunk in chunks:
+                f.write(f"{chunk}\n")
+            f.write(f"Sense: {restriccion.Sense}\n")
+            f.write(f"RHS: {restriccion.RHS}\n")
+        
+        with open(os.path.join(self.path_base,"debug_modelo_Restriccion_uso_maquina.txt"),"w") as f:
+            f.write(f"Nombre: Restriccion_uso_maquina\n")
+            f.write(f"Ecuacion tesina: 17\n")
+            f.write("Expresion LHS:\n")
+            
+            restriccion = self.restriccion_maquina.iloc[1]
+            expresion = str(self.modelo.getRow(restriccion))
+            n = 150
+            chunks = [expresion[i:i+n] for i in range(0, len(expresion), n)]
+            
+            for chunk in chunks:
+                f.write(f"{chunk}\n")
+            f.write(f"Sense: {restriccion.Sense}\n")
+            f.write(f"RHS: {restriccion.RHS}\n")
+        
+        with open(os.path.join(self.path_base,"debug_modelo_Restriccion_deadline.txt"),"w") as f:
+            f.write(f"Nombre: Restriccion_deadline\n")
+            f.write(f"Ecuacion tesina: 18\n")
+            f.write("Expresion LHS:\n")
+            
+            restriccion = self.restriccion_deadline[0].iloc[1]
+            expresion = str(self.modelo.getRow(restriccion))
+            n = 150
+            chunks = [expresion[i:i+n] for i in range(0, len(expresion), n)]
+            
+            for chunk in chunks:
+                f.write(f"{chunk}\n")
+            f.write(f"Sense: {restriccion.Sense}\n")
+            f.write(f"RHS: {restriccion.RHS}\n")
+        
+        with open(os.path.join(self.path_base,"debug_modelo_Restriccion_mismo_turno.txt"),"w") as f:
+            f.write(f"Nombre: Restriccion_mismo_turno\n")
+            f.write(f"Ecuacion tesina: 19\n")
+            f.write("Expresion LHS:\n")
+            
+            restriccion = self.restriccion_turno.iloc[1]
+            expresion = str(self.modelo.getRow(restriccion))
+            n = 150
+            chunks = [expresion[i:i+n] for i in range(0, len(expresion), n)]
+            
+            for chunk in chunks:
+                f.write(f"{chunk}\n")
+            f.write(f"Sense: {restriccion.Sense}\n")
+            f.write(f"RHS: {restriccion.RHS}\n")
+
+        self.modelo.write(os.path.join(self.path_base, "model.lp"))
+        self.modelo.write(os.path.join(self.path_base, "model.mps"))
+      
 def main():
     ml = ModeloMIP()
     
-    ml.optimizar()
+    ml.debug_modelo()
     
-    if ml.modelo.SolCount > 0:
-        print("Objetivo final:", ml.modelo.ObjVal)
-        ml.guardar_variables()
-        print("Variables guardadas")
+    #ml.optimizar()
+    
+    #if ml.modelo.SolCount > 0:
+    #    print("Objetivo final:", ml.modelo.ObjVal)
+    #    ml.guardar_variables()
+    #    print("Variables guardadas")
     
 if __name__ == "__main__":
     main()
