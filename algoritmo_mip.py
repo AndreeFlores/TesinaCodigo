@@ -673,14 +673,14 @@ class ModeloMIP:
 def main():
     ml = ModeloMIP()
     
-    ml.debug_modelo()
+    #ml.debug_modelo()
     
-    #ml.optimizar()
+    ml.optimizar()
     
-    #if ml.modelo.SolCount > 0:
-    #    print("Objetivo final:", ml.modelo.ObjVal)
-    #    ml.guardar_variables()
-    #    print("Variables guardadas")
+    if ml.modelo.SolCount > 0:
+        print("Objetivo final:", ml.modelo.ObjVal)
+        ml.guardar_variables()
+        print("Variables guardadas")
     
 if __name__ == "__main__":
     main()
