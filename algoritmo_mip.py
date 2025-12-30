@@ -68,19 +68,6 @@ class ModeloMIPCallback:
         latest_sol = sol_files[-1] if sol_files else None
         return latest_sol
     
-    def load_solution(self, model, solfile):
-        """Si existe solfile, leerla y cargarla en el modelo."""
-        if solfile is None or not os.path.exists(solfile):
-            print(f"[Callback][{self._timestr()}] No se encontró un archivo .sol guardado")
-            return False
-        try:
-            model.read(solfile)
-            print(f"[Callback][{self._timestr()}] Archivo .sol cargado")
-            return True
-        except Exception as e:
-            print(f"[Callback][{self._timestr()}] Error cargando .sol: {e}")
-            return False
-    
     def __call__(self, model, where):
         
         #guardar modelo si no existe archivo
@@ -119,7 +106,7 @@ class ModeloMIPCallback:
             self.se_encontro_mejor = True
             #guardar solucion
             try:
-                self._save_sol_file()
+                self._save_sol_file(model)
             except Exception as e:
                 print(f"[Callback][{self._timestr()}] Error guardando checkpoint: {e}")
         
@@ -136,16 +123,16 @@ class ModeloMIPCallback:
                 diferencia = runtime - (0.0 if self.runtime_start is None else self.runtime_start)
             
                 if diferencia >= self.tiempo_checkpoint:
-                    #guardar solucion si existe
-                    try:
-                        if model.SolCount > 0:
-                            self._save_sol_file()
-                            model.terminate() #terminar la busqueda de la solucion solo cuando se tiene por lo menos una solucion
-                        else:
-                            print(f"[Callback][{self._timestr()}] Error guardando checkpoint: No hay soluciones, continuando busqueda")
-                    except Exception as e:
-                        print(f"[Callback][{self._timestr()}] Error guardando checkpoint: {e}")                    
-                    
+                        #guardar solucion si existe
+                        try:
+                            if model.SolCount > 0:
+                                self._save_sol_file(model)
+                                model.terminate() #terminar la busqueda de la solucion solo cuando se tiene por lo menos una solucion
+                            else:
+                                print(f"[Callback][{self._timestr()}] Error guardando checkpoint: No hay soluciones, continuando busqueda")
+                        except Exception as e:
+                            print(f"[Callback][{self._timestr()}] Error guardando checkpoint: {e}")
+
 class ModeloMIP:
     
     def __init__(self):
@@ -159,13 +146,19 @@ class ModeloMIP:
         self.datos = Datos(path = PATH_INPUT)
         
         self.modelo.setParam("LogFile", self.path_log)
-        self.modelo.setParam("Threads",4) #numero de threads a utilizar
+        self.modelo.setParam("Threads",8) #numero de threads a utilizar
         self.modelo.setParam("NodefileStart",0.5) #durante la busqueda si se supera esta cantidad de GB en la memoria se guarda en un archivo
+        self.modelo.setParam("NodefileDir",self.path_base)
+        
+        self.modelo.setParam("Presolve",2)
         self.modelo.setParam("PreSparsify",1) #Modo de reduccion del presolve del modelo
         
         self.modelo.setParam("MIPFocus",1) #estrategia para la busqueda de la solucion
+        self.modelo.setParam("ImproveStartNodes",80)
         
         self.modelo.setParam("Seed",0) #random seed
+        
+        self.modelo.setParam("SolutionLimit",1) #encuentra una solucion de manera más rapida
         
         #crear variables
         self.crear_variables()
@@ -280,14 +273,14 @@ class ModeloMIP:
         
         #Makespan ecuacion 9
         self.modelo.setObjectiveN(
-            expr = self.variables_makespan
+            expr = 100 * self.variables_makespan
             , index = 0
             , weight = weight_makespan
             , name = f"Makespan_objetivo"
         )
         
         #Energy ecuacion 10
-        expresion = (self.variables_socket @ self.datos.socket_price)
+        expresion = 100 * (self.variables_socket @ self.datos.socket_price)
         self.modelo.setObjectiveN(
             expr = expresion
             , index=1
@@ -470,12 +463,24 @@ class ModeloMIP:
         
         Realiza checkpoints
         """
-        
+        callback = ModeloMIPCallback(
+            path_base=self.path_base
+            , tiempo_checkpoint_segundos= 3600
+        )
         try:
             self.modelo = gp.read(os.path.join(self.path_base, "model.lp"))
             print("Ya existe un archivo model.lp cargando modelo")
         except Exception as e:
             print(f"No se pudo leer archivo model.lp causa: {e}")
+        
+        try:
+            archivo = callback.latest_checkpoint()
+            if archivo is not None:
+                self.modelo.read(archivo)
+                self.modelo.setParam("SolutionLimit",gp.GRB.MAXINT) #para buscar mas soluciones
+                print(f"Se pudo leer el chekpoint archivo en {archivo}")
+        except Exception as e:
+            print(f"No se pudo leer archivo .sol causa: {e}")
         
         while True:
             #Optimizacion finalizada
@@ -490,10 +495,6 @@ class ModeloMIP:
 
             #Empezando la optimizacion
             print("Empezando optimizacion")
-            callback = ModeloMIPCallback(
-                path_base=self.path_base
-                , tiempo_checkpoint_segundos= 3600
-            )
             self.modelo.optimize(callback)
 
             #Optimización interrumpida por callback
@@ -503,6 +504,11 @@ class ModeloMIP:
             #para alterar la busqueda
             self.modelo.setParam("Seed"
                 , np.random.randint(0,2**30-1)
+            )
+            #nuevo callback
+            callback = ModeloMIPCallback(
+                path_base=self.path_base
+                , tiempo_checkpoint_segundos= 3600
             )
     
     def guardar_variables(self):
