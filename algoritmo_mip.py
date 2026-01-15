@@ -10,6 +10,44 @@ import pandas as pd
 import gurobipy as gp
 import gurobipy_pandas as gppd
 
+import json
+
+def save_json_params():
+    path_base = os.path.join("Datos Tesina", "algoritmos mip")
+    if not os.path.exists(path_base):
+        os.makedirs(path_base, exist_ok=True)
+
+    dict_json = {
+        "Threads": 4 #numero de threads a utilizar
+        , "NodefileStart" : 0.25 #durante la busqueda si se supera esta cantidad de GB en la memoria se guarda en un archivo
+        , "SoftMemLimit" : 8
+        , "Method" : 1 #metodo a utilizar
+        
+        , "Presolve" : 2
+        , "PreSparsify" : 1 #Modo de reduccion del presolve del modelo
+        , "Cuts" : 3 #metodo de cuts
+        , "MIPFocus" : 3 #estrategia para la busqueda de la solucion
+        , "Heuristics" : 0.20
+        
+        , "ImproveStartNodes" : 40
+        , "SolutionLimit" : 1 #encuentra una solucion de manera más rapida
+        
+        , "Seed" : 0 #random seed
+    }
+    
+    path_archivo = os.path.join(path_base,"params.json")
+    with open(path_archivo, mode="w", encoding="utf-8") as archivo:
+        json.dump(dict_json, archivo, indent=4)
+
+def load_json_params() -> dict:
+    path_base = os.path.join("Datos Tesina", "algoritmos mip")
+    path_archivo = os.path.join(path_base,"params.json")
+    
+    with open(path_archivo, mode="r", encoding="utf-8") as archivo:
+        dict_param = json.load(archivo)
+    
+    return dict_param
+
 class ModeloMIPCallback:
     
     def __init__(self
@@ -140,25 +178,17 @@ class ModeloMIP:
         if not os.path.exists(self.path_base):
             os.makedirs(self.path_base, exist_ok=True)
         
-        self.path_log = os.path.join(self.path_base,"mip_schedule.txt") #ubicacion del log
+        self.path_log = os.path.join(self.path_base,"mip_schedule.log") #ubicacion del log
         
         self.modelo = gp.Model("MIP_Scheduling")
         self.datos = Datos(path = PATH_INPUT)
         
         self.modelo.setParam("LogFile", self.path_log)
-        self.modelo.setParam("Threads",8) #numero de threads a utilizar
-        self.modelo.setParam("NodefileStart",0.5) #durante la busqueda si se supera esta cantidad de GB en la memoria se guarda en un archivo
         self.modelo.setParam("NodefileDir",self.path_base)
         
-        self.modelo.setParam("Presolve",2)
-        self.modelo.setParam("PreSparsify",1) #Modo de reduccion del presolve del modelo
-        
-        self.modelo.setParam("MIPFocus",1) #estrategia para la busqueda de la solucion
-        self.modelo.setParam("ImproveStartNodes",80)
-        
-        self.modelo.setParam("Seed",0) #random seed
-        
-        self.modelo.setParam("SolutionLimit",1) #encuentra una solucion de manera más rapida
+        dict_params = load_json_params()
+        for k, v in dict_params.items():
+            self.modelo.setParam(k, v)
         
         #crear variables
         self.crear_variables()
@@ -201,7 +231,7 @@ class ModeloMIP:
                 siguiente_cambio_idx = np.argwhere(periodo <= cambio_turnos_np).min()
                 siguiente_cambio = cambio_turnos_np[siguiente_cambio_idx]
                 
-                periodo_final = periodo + intervalo
+                periodo_final = periodo + intervalo_maximo - intervalo
                 
                 lista_df.append({
                     "Producto" : producto_text
@@ -216,7 +246,7 @@ class ModeloMIP:
                     , "Periodo_Valor" : periodo
                     , "Es_Intervalo_Inicial" : False if intervalo > 0 else True
                     , "Es_Intervalo_Final" : True if intervalo == intervalo_maximo else False
-                    , "Es_Viable_Periodo_Final" : True if (periodo < siguiente_cambio) and (periodo_final < siguiente_cambio) else False
+                    , "Es_Viable_Periodo_Final" : True if (periodo <= siguiente_cambio) and (periodo_final <= siguiente_cambio) else False
                 })
         
         self.variables_df = pd.DataFrame(data=lista_df).set_index([
@@ -273,14 +303,14 @@ class ModeloMIP:
         
         #Makespan ecuacion 9
         self.modelo.setObjectiveN(
-            expr = 100 * self.variables_makespan
+            expr = self.variables_makespan
             , index = 0
             , weight = weight_makespan
             , name = f"Makespan_objetivo"
         )
         
         #Energy ecuacion 10
-        expresion = 100 * (self.variables_socket @ self.datos.socket_price)
+        expresion = (self.variables_socket @ self.datos.socket_price)
         self.modelo.setObjectiveN(
             expr = expresion
             , index=1
@@ -473,16 +503,18 @@ class ModeloMIP:
         except Exception as e:
             print(f"No se pudo leer archivo model.lp causa: {e}")
         
-        try:
-            archivo = callback.latest_checkpoint()
-            if archivo is not None:
-                self.modelo.read(archivo)
-                self.modelo.setParam("SolutionLimit",gp.GRB.MAXINT) #para buscar mas soluciones
-                print(f"Se pudo leer el chekpoint archivo en {archivo}")
-        except Exception as e:
-            print(f"No se pudo leer archivo .sol causa: {e}")
-        
         while True:
+        
+            try:
+                archivo = callback.latest_checkpoint()
+                if archivo is not None:
+                    self.modelo.read(archivo)
+                    self.modelo.setParam("SolutionLimit",gp.GRB.MAXINT) #para buscar mas soluciones
+                    self.modelo.setParam("MIPFocus",3) #estrategia para la busqueda de la solucion
+                    print(f"Se pudo leer el chekpoint archivo en {archivo}")
+            except Exception as e:
+                print(f"No se pudo leer archivo .sol causa: {e}")
+            
             #Optimizacion finalizada
             status = self.modelo.Status
             if status in (gp.GRB.OPTIMAL
@@ -690,4 +722,4 @@ def main():
     
 if __name__ == "__main__":
     main()
-
+    #save_json_params()

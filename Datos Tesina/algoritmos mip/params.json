@@ -1,0 +1,14 @@
+{
+    "Threads": 4,
+    "NodefileStart": 0.25,
+    "SoftMemLimit": 8,
+    "Method": 1,
+    "Presolve": 2,
+    "PreSparsify": 1,
+    "Cuts": 3,
+    "MIPFocus": 3,
+    "Heuristics": 0.2,
+    "ImproveStartNodes": 40,
+    "SolutionLimit": 1,
+    "Seed": 0
+}
