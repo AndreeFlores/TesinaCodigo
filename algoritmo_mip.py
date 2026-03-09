@@ -1,7 +1,6 @@
 from Carga_Datos import Datos, PATH_INPUT
 import numpy as np
 import glob
-from pathlib import Path
 import os
 from datetime import datetime
 import time
@@ -11,6 +10,7 @@ import gurobipy as gp
 import gurobipy_pandas as gppd
 
 import json
+import zipfile
 
 def save_json_params():
     path_base = os.path.join("Datos Tesina", "algoritmos mip")
@@ -719,7 +719,95 @@ def main():
         print("Objetivo final:", ml.modelo.ObjVal)
         ml.guardar_variables()
         print("Variables guardadas")
+
+def zip_mip(
+        base_dir : str | None = None
+        , nombre_zip_modelo : str = "modelo.zip"
+        , nombre_zip_log : str = "logs.zip"
+    ):
+    """
+    zip_mip - 
     
+    Guarda los archivos del modelo de programación lineal mixta
+    
+    Parameters
+    ----------
+    base_dir (str | None, optional, defaults to None) :
+        La ubicación de la carpeta con los archivos
+    
+    nombre_zip_modelo (str, optional, defaults to "modelo.zip") :
+        Nombre donde se guardará los archivos con el modelo
+    
+    nombre_zip_log (str, optional, defaults to "logs.zip") :
+        nombre donde se guardará los logs del algoritmo
+    
+    """
+    
+    if base_dir is None:
+        base_dir = os.path.join("Datos Tesina", "algoritmos mip")
+    
+    #archivo de logs
+    if not os.path.isdir(base_dir):
+        archivos_path = []
+    else:
+        archivos_path = [
+            os.path.join(base_dir, f)
+            for f in os.listdir(base_dir)
+            if f.lower().endswith(".txt") and os.path.isfile(os.path.join(base_dir, f))
+        ]
+    
+    with zipfile.ZipFile(os.path.join(base_dir,nombre_zip_log),"w") as file:
+        for archivo in archivos_path:
+            file.write(archivo)
+    
+    #archivo de modelos
+    if not os.path.isdir(base_dir):
+        archivos_path = []
+    else:
+        archivos_path = [
+            os.path.join(base_dir, f)
+            for f in os.listdir(base_dir)
+            if f.lower().endswith(".lp") and os.path.isfile(os.path.join(base_dir, f))
+        ]
+    
+    with zipfile.ZipFile(os.path.join(base_dir,nombre_zip_modelo),"w") as file:
+        for archivo in archivos_path:
+            file.write(archivo)
+
+def unzip_mip(
+        base_dir : str | None = None
+        , nombre_zip_modelo : str = "modelo.zip"
+        , nombre_zip_log : str = "logs.zip"
+    ):
+    """
+    unzip_mip - 
+    
+    Extrae los archivos guardados en los archivos .zip
+    
+    Parameters
+    ----------
+    base_dir (str | None, optional, defaults to None) :
+        La ubicación de la carpeta con los archivos
+    
+    nombre_zip_modelo (str, optional, defaults to "modelo.zip") :
+        Nombre donde se guardará los archivos con el modelo
+    
+    nombre_zip_log (str, optional, defaults to "logs.zip") :
+        nombre donde se guardará los logs del algoritmo
+    
+    """
+    
+    if base_dir is None:
+        base_dir = os.path.join("Datos Tesina", "algoritmos mip")
+    
+    with zipfile.ZipFile(os.path.join(base_dir, nombre_zip_modelo), "r") as file:
+        file.extractall(base_dir)
+    
+    with zipfile.ZipFile(os.path.join(base_dir, nombre_zip_log), "r") as file:
+        file.extractall(base_dir)
+
 if __name__ == "__main__":
     main()
     #save_json_params()
+    #zip_mip()
+    

@@ -3716,7 +3716,7 @@ def optimizacion_final_tesis():
     
     poblacion = Poblacion(
         random_seed=12345
-        , id_nombre="tesis_4"
+        , id_nombre="tesis_5"
         , n=20
         , probabilidad_mutacion=dict_param["p_mutacion"]
         , p_optimizacion_deterministica=dict_param["p_optimizacion_deterministica"]

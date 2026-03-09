@@ -1,10 +1,11 @@
-from algoritmo_genetico import Poblacion, buscar_mejor_parametros
+from algoritmo_genetico import Poblacion
 from itertools import product
-import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 import json
 import pandas as pd
+from typing import Literal
+import zipfile
 
 def worker(item) -> str:
     """
@@ -30,7 +31,10 @@ def worker(item) -> str:
     
     return key
 
-def main(num_workers : int = None):
+def realizar_busqueda(
+        num_workers : int = None
+        , verbose : bool = False
+    ):
     
     valores_probabilidad_mutacion = [0.01,0.05,0.1] #listo
     valores_generaciones = [10]
@@ -89,17 +93,16 @@ def main(num_workers : int = None):
     if os.path.exists(filename):
         try:
             items = load_items_from_file(fname=filename)
-            print(f"Leídos {len(items)} items desde {filename}")
+            if verbose:
+                print(f"Leídos {len(items)} items desde {filename}")
         except Exception as e:
-            print(f"Error leyendo {filename}: {e}. Se usarán las combinaciones generadas y se reescribirá el archivo.")
+            if verbose:
+                print(f"Error leyendo {filename}: {e}. Se usarán las combinaciones generadas y se reescribirá el archivo.")
             save_items_to_file(items,fname=filename)
     else:
         save_items_to_file(items,fname=filename)
-        print(f"Items guardados en {filename}")
-
-    tiempo_inicio = time.time()
-    
-    print("Iniciando busqueda grid search")
+        if verbose:
+            print(f"Items guardados en {filename}")  
     
     # Ajusta max_workers, None para que concurrent.futures elija
     with ProcessPoolExecutor(max_workers=num_workers) as exe:
@@ -108,13 +111,11 @@ def main(num_workers : int = None):
             key = futuros[futuro]
             try:
                 resultado = futuro.result()
-                print(f"Combinación procesada: {resultado}")
+                if verbose:
+                    print(f"Combinación procesada: {resultado}", end="\r")
             except Exception as e:
-                print(f"Error en combinación {key}: {e}")
-    
-    tiempo_final = time.time() - tiempo_inicio
-    
-    print(f"Tiempo total: {tiempo_final:.2f}")
+                if verbose:
+                    print(f"Error en combinación {key}: {e}")
 
 def save_items_to_file(items_list, fname):
     # items_list: list of (idx, dict)
@@ -254,7 +255,6 @@ def resultados():
                 df = df_fila
             else:
                 df : pd.DataFrame = pd.concat([df, df_fila], ignore_index=True)
-            print(f"Cantidad de filas {len(df.index)}")
     
     df["Porc_Mejora_Aptitud"] = (df["Generacion 10"] - df["Generacion 0"]) / df["Generacion 0"]
     df["Hubo_Mejora"] = df["Generacion 10"] < df["Generacion 0"]
@@ -276,12 +276,218 @@ def resultados():
         ]
         , encoding="utf-8"
     )
+
+def buscar_mejor_parametros(
+        tipo_optimizacion : Literal['absoluto','porcentaje'] = 'porcentaje'
+    ) -> tuple[dict, str]:
+    """
+    buscar_mejor_parametros - 
     
-if __name__ == "__main__":
-    #num_workers : int = max(os.cpu_count()-2,1)
+    Devuelve los mejores parámetros y la ubicación de la mejor
+    población encontrada en la búsqueda.
     
-    #main(num_workers=num_workers)
+    Parameters
+    ----------
+    tipo_optimizacion (Literal['absoluto','porcentaje'], optional, defaults to 'porcentaje') :
+        Criterio utilizado para comparar poblaciones:
+        * 'absoluto': regresa la población con la menor aptitud
+        * 'porcentaje': regresa la población con la mayor disminución porcentual de la aptitud
     
-    #print(buscar_mejor_parametros())
+    Returns
+    -------
+    tuple[dict, str] :
+        Tupla con elementos:
+        * diccionario con los parámetros y sus valores
+        * str con la ubicación de los parámetros
+    """
+    
+    base_dir = os.path.join("Datos Tesina", "algoritmo genetico","grid search")
+    if not os.path.isdir(base_dir):
+        archivos_path = []
+    else:
+        archivos_path = [
+            os.path.join(base_dir, f)
+            for f in os.listdir(base_dir)
+            if f.lower().endswith(".txt") and os.path.isfile(os.path.join(base_dir, f))
+        ]
+    
+    aptitud_acumulada : float = None
+    mejor_archivo : str = None
+    porc_mejora_acumulada : float = None
+    
+    for archivo_path in archivos_path:
+        with open(archivo_path,"r") as archivo:
+            
+            lineas = archivo.readlines()
+            promedio_aptitud_inicio : float = float(lineas[22-1].removeprefix("promedio de aptitud "))
+            promedio_aptitud_final : float = float(lineas[62-1].removeprefix("promedio de aptitud "))
+            porc_mejora = (promedio_aptitud_final - promedio_aptitud_inicio) / promedio_aptitud_inicio
+            aptitud_incumbente : float = float(lineas[2-1].removeprefix("resultado: "))
+            
+            #revisa que el archivo es viable
+            if promedio_aptitud_final < promedio_aptitud_inicio:
+                match tipo_optimizacion:
+                    case "porcentaje":
+                        if porc_mejora_acumulada is None:
+                            porc_mejora_acumulada = porc_mejora
+                            mejor_archivo = archivo_path
+                        if porc_mejora < porc_mejora_acumulada:
+                            porc_mejora_acumulada = porc_mejora
+                            mejor_archivo = archivo_path
+                    case "absoluto":
+                        if aptitud_acumulada is None:
+                            aptitud_acumulada = aptitud_incumbente
+                            mejor_archivo = archivo_path
+                        if aptitud_incumbente < aptitud_acumulada:
+                            aptitud_acumulada = aptitud_incumbente
+                            mejor_archivo = archivo_path
+    
+    if mejor_archivo is None:
+        return None, None
+    
+    parametros = dict()
+    with open(mejor_archivo,"r") as archivo:
+        lineas = archivo.readlines()
+            
+        parametros["cantidad_individuos"] = int(lineas[5-1].removeprefix("cantidad_individuos: "))
+        parametros["p_mutacion"] = float(lineas[6-1].removeprefix("p_mutacion: "))
+        
+        cantidad_maxima_generaciones = lineas[7-1].removeprefix("cantidad_maxima_generaciones: ")
+        parametros["cantidad_maxima_generaciones"] = cantidad_maxima_generaciones if cantidad_maxima_generaciones is None else int(cantidad_maxima_generaciones)
+        
+        tiempo_maximo = lineas[8-1].removeprefix("tiempo_maximo: ")
+        parametros["tiempo_maximo"] = tiempo_maximo if tiempo_maximo is None else float(tiempo_maximo)
+        
+        parametros["p_optimizacion_deterministica"] = float(lineas[9-1].removeprefix("p_optimizacion_deterministica: "))
+        parametros["probabilidad_saltar_periodo"] = float(lineas[10-1].removeprefix("probabilidad_saltar_periodo: "))
+        parametros["peso_seleccion_paso"] = float(lineas[11-1].removeprefix("peso_seleccion_paso: "))
+        parametros["peso_seleccion_demanda"] = float(lineas[12-1].removeprefix("peso_seleccion_demanda: "))
+        parametros["peso_mover_periodo"] = float(lineas[13-1].removeprefix("peso_mover_periodo: "))
+        parametros["peso_cambiar_task"] = float(lineas[14-1].removeprefix("peso_cambiar_task: "))
+        parametros["intentos_mutacion"] = int(lineas[15-1].removeprefix("intentos_mutacion: "))
+        parametros["probabilidad_reducir"] = float(lineas[16-1].removeprefix("probabilidad_reducir: "))
+        parametros["probabilidad_completo"] = float(lineas[17-1].removeprefix("probabilidad_completo: "))
+    
+    return parametros, mejor_archivo
+
+def tiempo_grid_search():
+    tiempo_total : float = 0
+    base_dir = os.path.join("Datos Tesina", "algoritmo genetico","grid search")
+    if not os.path.isdir(base_dir):
+        archivos_path = []
+    else:
+        archivos_path = [
+            os.path.join(base_dir, f)
+            for f in os.listdir(base_dir)
+            if f.lower().endswith(".txt") and os.path.isfile(os.path.join(base_dir, f))
+        ]
+    
+    for archivo_path in archivos_path:
+        with open(archivo_path,"r") as archivo:
+            lineas = archivo.readlines()
+            
+            for linea_tiempo in range(23,63+1,4):
+                tiempo_generacion = float(
+                    lineas[linea_tiempo-1].removeprefix("tiempo de creacion de generacion (segundos) ")
+                )
+                
+                tiempo_total = tiempo_total + tiempo_generacion
+    
+    return tiempo_total
+
+def zip_grid_search(
+        base_dir : str | None = None
+        , nombre_zip : str = "grid_search.zip"
+    ):
+    """
+    zip_grid_search - 
+    
+    Guarda los resultados de las poblaciones en el grid search en un archivo .zip
+    
+    Parameters
+    ----------
+    base_dir (str | None, optional, defaults to None) :
+        Ubicación de los archivos
+    
+    nombre_zip (str, optional, defaults to "grid_search.zip") :
+        Nombre del archivo .zip
+    
+    Raises
+    ------
+    FileExistsError :
+        Si la ubicación `base_dir` no existe
+    
+    """
+    
+    if base_dir is None:
+        base_dir = os.path.join("Datos Tesina", "algoritmo genetico","grid search")
+        
+    if not os.path.exists(base_dir):
+        raise FileExistsError(f"{base_dir} no existe")
+    
+    if not os.path.isdir(base_dir):
+        archivos_path = []
+    else:
+        archivos_path = [
+            os.path.join(base_dir, f)
+            for f in os.listdir(base_dir)
+            if f.lower().endswith(".txt") and os.path.isfile(os.path.join(base_dir, f))
+        ]
+    
+    with zipfile.ZipFile(os.path.join(base_dir,nombre_zip),"w") as file:
+        for archivo in archivos_path:
+            file.write(archivo)
+
+def unzip_grid_search(
+        base_dir : str | None = None
+        , nombre_zip : str = "grid_search.zip"
+    ):
+    """
+    unzip_grid_search - 
+    
+    Guarda los resultados de las poblaciones de un archivo .zip en `base_dir`
+    
+    Parameters
+    ----------
+    base_dir (str | None, optional, defaults to None) :
+        Ubicación de los archivos
+    
+    nombre_zip (str, optional, defaults to "grid_search.zip") :
+        Nombre del archivo .zip
+    
+    Raises
+    ------
+    FileExistsError :
+        Si la ubicación `base_dir` no existe
+    
+    """
+    
+    if base_dir is None:
+        base_dir = os.path.join("Datos Tesina", "algoritmo genetico","grid search")
+        
+    if not os.path.exists(base_dir):
+        raise FileExistsError(f"El archivo {base_dir} no existe")
+    
+    with zipfile.ZipFile(os.path.join(base_dir, nombre_zip), "r") as file:
+        file.extractall(base_dir)
+
+def main(verbose : bool = False):
+    num_workers : int = max(os.cpu_count()-2,1)
+    
+    if verbose:
+        print(f"Cantidad de cores: {num_workers}")
+    
+    realizar_busqueda(num_workers=num_workers, verbose=verbose)
     
     resultados()
+    dict_param, ubicacion = buscar_mejor_parametros()
+    
+    tiempo_total_segundos = tiempo_grid_search()
+    if verbose:
+        print(f"Tiempo total de busqueda: {tiempo_total_segundos} segundos")
+    
+    zip_grid_search()
+
+if __name__ == "__main__":
+    main(verbose=True)
+    

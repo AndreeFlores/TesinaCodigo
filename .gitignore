@@ -162,4 +162,7 @@ cython_debug/
 pruebas.py
 modelo.lp
 Datos Tesina/Figuras_Tablas
-Datos Tesina/algoritmo genetico/grid search
+Datos Tesina/algoritmo genetico/grid search/*.txt
+Datos Tesina/algoritmos mip/mip_schedule_*.txt
+Datos Tesina/algoritmos mip/model_*.lp
+Datos Tesina/algoritmos mip/modelo.zip
