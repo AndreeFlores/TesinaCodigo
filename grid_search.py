@@ -1,4 +1,3 @@
-from algoritmo_genetico import Poblacion
 from itertools import product
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
@@ -8,6 +7,7 @@ from typing import Literal
 import zipfile
 
 def worker(item) -> str:
+    from algoritmo_genetico import Poblacion
     """
     worker - Actividad que realizará un worker
     """
@@ -319,8 +319,30 @@ def buscar_mejor_parametros(
         with open(archivo_path,"r") as archivo:
             
             lineas = archivo.readlines()
-            promedio_aptitud_inicio : float = float(lineas[22-1].removeprefix("promedio de aptitud "))
-            promedio_aptitud_final : float = float(lineas[62-1].removeprefix("promedio de aptitud "))
+            index_inicio = 0
+            index_final = 0
+            for index, linea in enumerate(lineas):
+                revisar_linea = linea.removesuffix("\n")
+                if revisar_linea == "Valores Generaciones":
+                    index_inicio = index
+                if revisar_linea != "Valores Generaciones" and revisar_linea.startswith("Valores Generaciones"):
+                    index_final = index
+                if index_final != 0:
+                    break
+            if index_final == 0:
+                index_final = len(lineas)
+            
+            for index in range(index_inicio, index_final):
+                revisar_linea = lineas[index].removesuffix("\n")
+                if revisar_linea.startswith("Generacion 0"):
+                    promedio_aptitud_inicio : float = float(
+                        lineas[index+2].removeprefix("promedio de aptitud ")
+                    )
+                if revisar_linea.startswith("Generacion"):
+                    promedio_aptitud_final : float = float(
+                        lineas[index+2].removeprefix("promedio de aptitud ")
+                    )
+            
             porc_mejora = (promedio_aptitud_final - promedio_aptitud_inicio) / promedio_aptitud_inicio
             aptitud_incumbente : float = float(lineas[2-1].removeprefix("resultado: "))
             
@@ -370,7 +392,7 @@ def buscar_mejor_parametros(
     
     return parametros, mejor_archivo
 
-def tiempo_grid_search():
+def tiempo_grid_search() -> float:
     tiempo_total : float = 0
     base_dir = os.path.join("Datos Tesina", "algoritmo genetico","grid search")
     if not os.path.isdir(base_dir):
@@ -386,9 +408,28 @@ def tiempo_grid_search():
         with open(archivo_path,"r") as archivo:
             lineas = archivo.readlines()
             
-            for linea_tiempo in range(23,63+1,4):
+            index_inicio = 0
+            index_final = 0
+            lista_index_tiempo = list()
+            for index, linea in enumerate(lineas):
+                revisar_linea = linea.removesuffix("\n")
+                if revisar_linea == "Valores Generaciones":
+                    index_inicio = index
+                if revisar_linea != "Valores Generaciones" and revisar_linea.startswith("Valores Generaciones"):
+                    index_final = index
+                if index_final != 0:
+                    break
+            if index_final == 0:
+                index_final = len(lineas)
+            
+            for index in range(index_inicio, index_final):
+                revisar_linea = lineas[index].removesuffix("\n")
+                if revisar_linea.startswith("tiempo de creacion de generacion (segundos)"):
+                    lista_index_tiempo.append(index)
+            
+            for linea_tiempo in lista_index_tiempo:
                 tiempo_generacion = float(
-                    lineas[linea_tiempo-1].removeprefix("tiempo de creacion de generacion (segundos) ")
+                    lineas[linea_tiempo].removeprefix("tiempo de creacion de generacion (segundos) ")
                 )
                 
                 tiempo_total = tiempo_total + tiempo_generacion
@@ -469,7 +510,7 @@ def unzip_grid_search(
         raise FileExistsError(f"El archivo {base_dir} no existe")
     
     with zipfile.ZipFile(os.path.join(base_dir, nombre_zip), "r") as file:
-        file.extractall(base_dir)
+        file.extractall()
 
 def main(verbose : bool = False):
     num_workers : int = max(os.cpu_count()-2,1)
