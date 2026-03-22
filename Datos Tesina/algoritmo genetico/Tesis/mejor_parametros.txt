@@ -1,0 +1,15 @@
+{
+  "cantidad_individuos": 10,
+  "p_mutacion": 0.1,
+  "cantidad_maxima_generaciones": 10,
+  "tiempo_maximo": 3600.0,
+  "p_optimizacion_deterministica": 1.0,
+  "probabilidad_saltar_periodo": 0.33,
+  "peso_seleccion_paso": 2.0,
+  "peso_seleccion_demanda": 1.0,
+  "peso_mover_periodo": 1.0,
+  "peso_cambiar_task": 1.0,
+  "intentos_mutacion": 10,
+  "probabilidad_reducir": 0.33,
+  "probabilidad_completo": 0.66
+}

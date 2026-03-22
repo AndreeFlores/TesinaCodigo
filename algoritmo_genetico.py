@@ -558,6 +558,60 @@ def optimizacion_final_tesis():
     )
     poblacion_3.guardar(path=os.path.join("Datos Tesina", "algoritmo genetico","Tesis"))
 
+    print("*"*50)
+    print("Aptitud 10makespan 5energia")
+    
+    poblacion_4 = Poblacion(
+        random_seed=12345
+        , id_nombre="tesis_ciclo_10makespan_5energia"
+        , n=20
+        , probabilidad_mutacion=dict_param["p_mutacion"]
+        , p_optimizacion_deterministica=dict_param["p_optimizacion_deterministica"]
+        , p_saltar_periodo=dict_param["probabilidad_saltar_periodo"]
+        , peso_seleccion_paso=dict_param["peso_seleccion_paso"]
+        , peso_seleccion_demanda=dict_param["peso_seleccion_demanda"]
+        , peso_mutacion_mover_periodo=dict_param["peso_mover_periodo"]
+        , peso_mutacion_cambiar_task=dict_param["peso_cambiar_task"]
+        , intentos_mutacion=dict_param["intentos_mutacion"]
+        , prob_mutacion_mover_periodo_reducir=dict_param["probabilidad_reducir"]
+        , prob_mutacion_mover_periodo_completa=dict_param["probabilidad_completo"]
+        , generaciones=200
+        , tiempo=None
+    )
+    
+    poblacion_4.calcular_solucion(verbose=True
+        , ciclo=dict(makespan=10,energia=5)
+        , iniciar_makespan=True
+    )
+    poblacion_4.guardar(path=os.path.join("Datos Tesina", "algoritmo genetico","Tesis"))
+
+    print("*"*50)
+    print("Aptitud 10energia 5makespan")
+    
+    poblacion_5 = Poblacion(
+        random_seed=12345
+        , id_nombre="tesis_ciclo_10energia_5makespan"
+        , n=20
+        , probabilidad_mutacion=dict_param["p_mutacion"]
+        , p_optimizacion_deterministica=dict_param["p_optimizacion_deterministica"]
+        , p_saltar_periodo=dict_param["probabilidad_saltar_periodo"]
+        , peso_seleccion_paso=dict_param["peso_seleccion_paso"]
+        , peso_seleccion_demanda=dict_param["peso_seleccion_demanda"]
+        , peso_mutacion_mover_periodo=dict_param["peso_mover_periodo"]
+        , peso_mutacion_cambiar_task=dict_param["peso_cambiar_task"]
+        , intentos_mutacion=dict_param["intentos_mutacion"]
+        , prob_mutacion_mover_periodo_reducir=dict_param["probabilidad_reducir"]
+        , prob_mutacion_mover_periodo_completa=dict_param["probabilidad_completo"]
+        , generaciones=200
+        , tiempo=None
+    )
+    
+    poblacion_5.calcular_solucion(verbose=True
+        , ciclo=dict(makespan=5,energia=10)
+        , iniciar_makespan=False
+    )
+    poblacion_5.guardar(path=os.path.join("Datos Tesina", "algoritmo genetico","Tesis"))
+
     print("Terminado")
 
 

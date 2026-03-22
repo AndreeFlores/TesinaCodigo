@@ -227,6 +227,8 @@ class Poblacion():
             , n_descendientes_creados : int = 4
             , probabilidad_optimizacion_deterministica : float = 0.5
             , verbose : bool = False
+            , peso_makespan : float = 1
+            , peso_energia : float = 1
         ) -> list[IndividuoA]:
         """
         crear_descendientes - 
@@ -280,7 +282,9 @@ class Poblacion():
             if rand.random() < probabilidad_optimizacion_deterministica:
                 hijo.optimizacion_deterministica()
             
-            aptitud_hijo = hijo.aptitud()
+            aptitud_hijo = hijo.aptitud(
+                peso_makespan=peso_makespan,peso_energia=peso_energia
+            )
             
             hijos.append(hijo)
             aptitudes_hijos.append(aptitud_hijo)
@@ -326,19 +330,22 @@ class Poblacion():
             padre = generacion_actual.pop(0)
             
             if verbose:
-                print(f"Aptitud madre {madre.aptitud():.2f}")
-                print(f"Aptitud padre {padre.aptitud():.2f}")
+                print(f"Aptitud madre {madre.aptitud(peso_makespan=peso_makespan,peso_energia=peso_energia):.2f}")
+                print(f"Aptitud padre {padre.aptitud(peso_makespan=peso_makespan,peso_energia=peso_energia):.2f}")
             
             hijos_nuevos: list[IndividuoA] = self.crear_descendientes(
                 madre=madre
                 ,padre=padre
                 ,probabilidad_optimizacion_deterministica=self.p_optimizacion_deterministica
-                , n_descendientes_creados=4
+                ,n_descendientes_creados=4
+                ,peso_energia=peso_energia
+                ,peso_makespan=peso_makespan
+                ,verbose=verbose
             )
             
             for hijo in hijos_nuevos:
                 if verbose:
-                    print(f"Aptitud hijo {hijo.aptitud():.2f}")
+                    print(f"Aptitud hijo {hijo.aptitud(peso_makespan=peso_makespan,peso_energia=peso_energia):.2f}")
                 generacion_nueva.append(hijo)
 
             if verbose:
