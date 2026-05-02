@@ -7,6 +7,7 @@ from grid_search import (
     , tiempo_grid_search
 )
 import json
+from graficas import grafica_incumbente
 
 def figura_muestra_mutacion():
     """
@@ -641,12 +642,243 @@ def prueba_optimizacion():
     
     print(individuo.aptitud())
 
+def figura_muestra_mutacion_2():
+    path_base = os.path.join("Datos Tesina"
+        , "Figuras_Tablas", "6_3", "Mutacion"
+    )
+    
+    individuo = IndividuoA(
+        inicializar=False
+    )
+    
+    individuo.agregar_task_mode(
+        maquina="MAQ120"
+        , periodo=1
+        , producto="PRINTED RIBBON"
+        , paso=0
+        , demanda=1
+        , task_mode="Sublimation TM3"
+    )
+    
+    individuo.agregar_task_mode(
+        maquina="MAQ120"
+        , periodo=12
+        , producto="PRINTED RIBBON"
+        , paso=1
+        , demanda=1
+        , task_mode="Anti-Shrinkage TM2"
+    )
+    
+    individuo.grafica_gantt(
+        path_save_fig=os.path.join(path_base,"grafica_mutacion_periodo_inicio.png")
+        , min_value_x= 0
+        , max_value_x= 20
+        , show_energia=False
+        , show_makespan=False
+        , titulo="Ejemplo de Mutación cambio de periodo (antes de mutación)"
+        , kwargs_grafica={
+            "subtitulo" : ""
+        }
+        , kwargs_label = {
+            "fontsize" : 18
+            , "fontweight" : "bold"
+        }
+        , kwargs_ticks = {
+            "fontsize" : 12
+            , "fontweight" : "bold"
+        }
+        , kwargs_suptitle = {
+            "fontsize" : 24
+            , "fontweight" : "bold"
+        }
+        , kwargs_legend={
+            "fontsize":20
+            , "title_fontsize":22
+        }
+        , x_ticks = [1,5,10,15,20]
+    )
+    
+    #no se utiliza individuo.mutacion_mover_periodo porque
+    # el inidividuo nunca será viable porque no se tienen
+    # todas las actividades
+    #resultado = individuo.mutacion_mover_periodo(
+    #    maquina="MAQ120"
+    #    , periodo=13
+    #    , probabilidad_reducir=1
+    #    , probabilidad_completo=1
+    #)
+    
+    #equivalente a la mutación de arriba
+    individuo.remover_task_mode(
+        maquina="MAQ120"
+        , periodo=13
+    )
+    individuo.agregar_task_mode(
+        maquina="MAQ120"
+        , periodo=5
+        , producto="PRINTED RIBBON"
+        , paso=1
+        , demanda=1
+        , task_mode="Anti-Shrinkage TM2"
+    )
+    
+    individuo.grafica_gantt(
+        path_save_fig=os.path.join(path_base,"grafica_mutacion_periodo_final.png")
+        , min_value_x= 0
+        , max_value_x= 20
+        , show_energia=False
+        , show_makespan=False
+        , titulo="Ejemplo de Mutación cambio de periodo (después de mutación)"
+        , kwargs_grafica={
+            "subtitulo" : ""
+        }
+        , kwargs_label = {
+            "fontsize" : 18
+            , "fontweight" : "bold"
+        }
+        , kwargs_ticks = {
+            "fontsize" : 12
+            , "fontweight" : "bold"
+        }
+        , kwargs_suptitle = {
+            "fontsize" : 24
+            , "fontweight" : "bold"
+        }
+        , kwargs_legend={
+            "fontsize":20
+            , "title_fontsize":22
+        }
+        , x_ticks = [1,5,10,15,20]
+    )
+
+def figura_muestra_mutacion_3():
+    path_base = os.path.join("Datos Tesina"
+        , "Figuras_Tablas", "6_3", "Mutacion"
+    )
+    
+    individuo = IndividuoA(
+        inicializar=False
+    )
+    
+    individuo.agregar_task_mode(
+        maquina="MAQ118"
+        , periodo=1
+        , producto="ROK ELASTIC"
+        , paso=0
+        , demanda=1
+        , task_mode="Harden[2] TM1"
+    )
+    
+    individuo.agregar_task_mode(
+        maquina="MAQ119"
+        , periodo=24
+        , producto="ROK ELASTIC"
+        , paso=0
+        , demanda=1
+        , task_mode="Harden[1.5] TM1"
+    )
+    
+    individuo.grafica_gantt(
+        path_save_fig=os.path.join(path_base,"grafica_mutacion_maquina_inicio.png")
+        , min_value_x= 0
+        , max_value_x= 50
+        , show_energia=False
+        , show_makespan=False
+        , titulo="Ejemplo de Mutación cambio de máquina (antes de mutación)"
+        , kwargs_grafica={
+            "subtitulo" : ""
+        }
+        , kwargs_label = {
+            "fontsize" : 18
+            , "fontweight" : "bold"
+        }
+        , kwargs_ticks = {
+            "fontsize" : 12
+            , "fontweight" : "bold"
+        }
+        , kwargs_suptitle = {
+            "fontsize" : 24
+            , "fontweight" : "bold"
+        }
+        , kwargs_legend={
+            "fontsize":20
+            , "title_fontsize":22
+        }
+        , x_ticks = [1,24,38,48]
+    )
+    
+    individuo.remover_task_mode(
+        maquina="MAQ119"
+        , periodo=24
+    )
+    individuo.agregar_task_mode(
+        maquina="MAQ118"
+        , periodo=24
+        , producto="ROK ELASTIC"
+        , paso=0
+        , demanda=1
+        , task_mode="Harden[1.5] TM3"
+    )
+    
+    individuo.grafica_gantt(
+        path_save_fig=os.path.join(path_base,"grafica_mutacion_maquina_final.png")
+        , min_value_x= 0
+        , max_value_x= 50
+        , show_energia=False
+        , show_makespan=False
+        , titulo="Ejemplo de Mutación cambio de máquina (después de mutación)"
+        , kwargs_grafica={
+            "subtitulo" : ""
+        }
+        , kwargs_label = {
+            "fontsize" : 18
+            , "fontweight" : "bold"
+        }
+        , kwargs_ticks = {
+            "fontsize" : 12
+            , "fontweight" : "bold"
+        }
+        , kwargs_suptitle = {
+            "fontsize" : 24
+            , "fontweight" : "bold"
+        }
+        , kwargs_legend={
+            "fontsize":20
+            , "title_fontsize":22
+        }
+        , x_ticks = [1,24,38,48]
+    )
+    
+def figura_simulacion_mejores_parametros():
+    
+    params , path_archivo = buscar_mejor_parametros()
+    
+    print("Mejores parametros:")
+    print("\u03B1:", params["peso_seleccion_paso"])
+    print("\u03B2:", params["peso_seleccion_demanda"])
+    print("p_saltar:",params["probabilidad_saltar_periodo"])
+    print("p_mutacion:",params["p_mutacion"])
+    print("peso_mover_periodo:",params["peso_mover_periodo"])
+    print("peso_cambiar_task:",params["peso_cambiar_task"])
+    print("p_reducir:",params["probabilidad_reducir"])
+    print("p_completo:",params["probabilidad_completo"])
+    print("n_mutaciones:",params["intentos_mutacion"])
+    print("p_optimizacion_deterministica:",params["p_optimizacion_deterministica"])
+    
+    grafica_incumbente(path_nombre_datos = "tesis_promedio.txt"
+        , path_fig = os.path.join("Datos Tesina","Figuras_Tablas","7_1_2","aptitud_mejor.png")
+    )
+
 def main():
     #crear resultado de la tesis
-    unzip_grid_search()
+    #unzip_grid_search()
     #tiempo_gs = tiempo_grid_search()
     #print(tiempo_gs)
-    optimizacion_final_tesis()
+    #optimizacion_final_tesis()
+    
+    #figura_muestra_mutacion_2()
+    #figura_muestra_mutacion_3()
+    figura_simulacion_mejores_parametros()
     
 if __name__ == "__main__":
     main()

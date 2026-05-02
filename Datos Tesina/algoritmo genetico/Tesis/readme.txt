@@ -1,1 +1,1 @@
-Archivo utilizado para la tesis: tesis_4.txt
+Archivo utilizado para la tesis: tesis_promedio.txt

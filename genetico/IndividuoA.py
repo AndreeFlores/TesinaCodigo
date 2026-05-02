@@ -883,6 +883,10 @@ class IndividuoA(IndividuoBase):
             , kwargs_label : dict = None
             , kwargs_ticks : dict = None
             , titulo : str = "Gráfica Gantt de tasks"
+            , show_makespan : bool = True
+            , show_energia : bool = True
+            , x_ticks : list[int] | None = None
+            , kwargs_legend : dict = None
         ):
         """
         grafica_gantt - 
@@ -919,8 +923,15 @@ class IndividuoA(IndividuoBase):
             path_save=path_save_df, kwargs_to_csv = kwargs_to_csv
         )
         
-        makespan : int = self._IndividuoBase__makespan()
-        energia : float = self._IndividuoBase__energia_precio()
+        if show_makespan:
+            makespan : int = self._IndividuoBase__makespan()
+        else:
+            makespan = None
+        
+        if show_energia:
+            energia : float = self._IndividuoBase__energia_precio()
+        else:
+            energia = None
         
         if kwargs_fig is None:
             kwargs_fig = dict()
@@ -934,9 +945,14 @@ class IndividuoA(IndividuoBase):
         if max_value_x is None:
             max_value_x=max(self.periodos)+1
         
+        if x_ticks is None:
+            ticks = self.cambio_turno
+        else:
+            ticks = x_ticks
+        
         grafica_gantt_plt(
             df=df
-            , time_leaps=self.cambio_turno
+            , time_leaps=x_ticks
             , min_value_x=min_value_x
             , max_value_x=max_value_x
             , costo_energia=energia
@@ -948,6 +964,7 @@ class IndividuoA(IndividuoBase):
             , kwargs_label=kwargs_label
             , kwargs_ticks=kwargs_ticks
             , titulo = titulo
+            , kwargs_legend=kwargs_legend
             , **kwargs_grafica
         )
 

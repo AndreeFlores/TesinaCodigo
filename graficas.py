@@ -212,6 +212,7 @@ def grafica_gantt_plt(
         , kwargs_subtitle : dict = None
         , kwargs_label : dict = None
         , kwargs_ticks : dict = None
+        , kwargs_legend : dict = None
         , titulo : str = "Gráfica Gantt de tasks"
     ):
 
@@ -270,11 +271,15 @@ def grafica_gantt_plt(
         legend_handles = [
             Patch(color=color_dict[mode], label=str(mode)) for mode in task_modes
         ]
+        if kwargs_legend is None:
+            kwargs_legend = dict()
+        
         legend = ax.legend(
             handles=legend_handles
-            , title="task_mode"
+            , title="task mode"
             , loc = "center left"
             , bbox_to_anchor=(1, 0.5)
+            , **kwargs_legend
         )
         legend.set_zorder(2.5)
     
@@ -309,6 +314,9 @@ def grafica_gantt_plt(
         subtitulo = subtitulo + f"Costo de energía: {costo_energia:.2f}"
     
     if subtitulo != "":
+        if kwargs_subtitle is None:
+            kwargs_subtitle = dict()
+        
         ax.set_title(
             subtitulo
             , loc="left"
@@ -545,8 +553,9 @@ def grafica_incumbente(
             
             promedio_costo = float(archivo_lineas[linea_costo + i + 2].removeprefix("promedio de costo ").removesuffix("\n"))
             promedio_costos.append(promedio_costo)
-            i = i + 4
-         
+            i = i + 5
+    
+    
     #grafica linea
     fig, ax = plt.subplots(
         figsize=(14, 6), layout='tight'
@@ -581,11 +590,10 @@ def grafica_incumbente(
     
     plt.xticks(fontweight="bold", fontsize = 16)
     plt.yticks(fontweight="bold", fontsize = 16)
+    plt.grid(visible=True, axis='x', linestyle='--', color='gray', alpha=0.7)
     #plt.legend(fontsize=16)
     
     if path_fig.endswith(".png"):
-        
-        
         fig.savefig(
             fname=path_fig
             , transparent=True
