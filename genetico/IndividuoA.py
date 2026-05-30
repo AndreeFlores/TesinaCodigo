@@ -24,6 +24,7 @@ class IndividuoA(IndividuoBase):
             , saved_path : str = None 
             , random_seed : int = None
             , kwargs_inicializar : dict = None
+            , input_path : str = None
         ):
         """
         __init__ - 
@@ -47,8 +48,10 @@ class IndividuoA(IndividuoBase):
         kwargs_inicializar (dict, optional, defaults to None) :
             kwargs de `self.inicializar`
         
+        input_path (str, optional, defaults to None) :
+            Path donde se ubican los datos a procesar
         """
-        super().__init__()
+        super().__init__(input_path=input_path)
         
         #asignar random seed
         if random_seed is not None:
@@ -720,7 +723,9 @@ class IndividuoA(IndividuoBase):
 
         probabilidad = self.__probabilidades(aptitud_madre, aptitud_padre)
 
-        descendiente = IndividuoA()
+        descendiente = IndividuoA(
+            input_path=self.INPUT_PATH
+        )
         
         diccionario_pasos = dict()
         for producto, demanda in self.datos.iterar_productos():
@@ -1127,7 +1132,9 @@ class IndividuoA(IndividuoBase):
         probabilidad = self.__probabilidades(aptitud_madre, aptitud_padre)
 
         #crear descendiente sin inicializar
-        descendiente = IndividuoA()
+        descendiente = IndividuoA(
+            input_path= self.INPUT_PATH
+        )
 
         dict_pasos = dict()
         

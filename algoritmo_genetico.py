@@ -8,6 +8,7 @@ from grid_search import (
 )
 import json
 from graficas import grafica_incumbente
+from Carga_Datos import PATH_INPUT_TEST
 
 def figura_muestra_mutacion():
     """
@@ -472,6 +473,11 @@ def figura_poster_ejemplo():
     )
     
 def optimizacion_final_tesis():
+    """
+    optimizacion_final_tesis - 
+    
+    Función para ejecutar el modelo genetico utilizado en la tesina
+    """
     
     dict_param, ubicacion = buscar_mejor_parametros()
     print("Mejor simulación:", ubicacion)
@@ -615,8 +621,50 @@ def optimizacion_final_tesis():
 
     print("Terminado")
 
+def optimizacion_prueba():
+    
+    #dict_param, ubicacion = buscar_mejor_parametros()
+    #print("Mejor simulación:", ubicacion)
+    #print("Parámetros", dict_param)
+    
+    #with open(os.path.join("Datos Tesina","algoritmo genetico"
+    #        ,"Tesis","mejor_parametros.txt"), "w", encoding="utf-8") as f:
+    #    json.dump(dict_param, f, ensure_ascii=False, indent=2)
+    
+    poblacion= Poblacion(
+        random_seed=12345
+        , id_nombre="tesis_test"
+        , n=10
+        , probabilidad_mutacion=0.1
+        , p_optimizacion_deterministica=0.5
+        , p_saltar_periodo=0.1
+        , peso_seleccion_paso=0.2
+        , peso_seleccion_demanda=0.1
+        , peso_mutacion_mover_periodo=1.0
+        , peso_mutacion_cambiar_task=1.0
+        , intentos_mutacion=10
+        , prob_mutacion_mover_periodo_reducir=0.5
+        , prob_mutacion_mover_periodo_completa=0.5
+        , generaciones=200
+        , tiempo=None
+        , input_path=PATH_INPUT_TEST
+    )
+    
+    poblacion.calcular_solucion(
+        verbose=True
+    )
+    
+    poblacion.guardar(path=os.path.join("Datos Tesina", "algoritmo genetico","Tesis"))
+    
+    print("Terminado")
+    
 
 def prueba_optimizacion():
+    """
+    prueba_optimizacion - 
+    
+    Funcion para test de optimización deterministica del modelo genetico
+    """
     
     path_base = os.path.join("Datos Tesina", "Pruebas", "Optimizacion_deterministica")
     if not os.path.exists(path_base):
@@ -643,6 +691,12 @@ def prueba_optimizacion():
     print(individuo.aptitud())
 
 def figura_muestra_mutacion_2():
+    """
+    figura_muestra_mutacion_2 - 
+    
+    Funcion para crear figuras utilizadas en la tesis
+    """
+    
     path_base = os.path.join("Datos Tesina"
         , "Figuras_Tablas", "6_3", "Mutacion"
     )
@@ -752,6 +806,12 @@ def figura_muestra_mutacion_2():
     )
 
 def figura_muestra_mutacion_3():
+    """
+    figura_muestra_mutacion_3 - 
+    
+    Funcion para crear figuras utilizadas en la tesis
+    """
+    
     path_base = os.path.join("Datos Tesina"
         , "Figuras_Tablas", "6_3", "Mutacion"
     )
@@ -850,6 +910,11 @@ def figura_muestra_mutacion_3():
     )
     
 def figura_simulacion_mejores_parametros():
+    """
+    figura_simulacion_mejores_parametros - 
+    
+    Funcion para crear figuras utilizadas en la tesis
+    """
     
     params , path_archivo = buscar_mejor_parametros()
     

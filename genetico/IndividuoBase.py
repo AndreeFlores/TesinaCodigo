@@ -16,9 +16,22 @@ class IndividuoBase:
     * mutacion
     """
     
-    def __init__(self):
+    def __init__(self
+            , input_path : str | None = None
+        ):
+        """
+        Parameters
+        ----------
+        input_path (str | None, optional, defaults to None) :
+            Path donde se ubican los datos a procesar
         
-        self.datos = Datos(PATH_INPUT)
+        """
+        
+        if input_path is None:
+            input_path = PATH_INPUT
+        
+        self.INPUT_PATH = input_path
+        self.datos = Datos(self.INPUT_PATH)
         
         self.maquinas = self.datos.machines_id
         

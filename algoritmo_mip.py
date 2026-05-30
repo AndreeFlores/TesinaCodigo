@@ -173,7 +173,16 @@ class ModeloMIPCallback:
 
 class ModeloMIP:
     
-    def __init__(self):
+    def __init__(self,
+            path_datos : str          
+        ):
+        """
+        Parameters
+        ----------
+        path_datos (str) :
+            Path donde se ubican los datos a procesar
+        """
+        
         self.path_base = os.path.join("Datos Tesina", "algoritmos mip")
         if not os.path.exists(self.path_base):
             os.makedirs(self.path_base, exist_ok=True)
@@ -181,7 +190,7 @@ class ModeloMIP:
         self.path_log = os.path.join(self.path_base,"mip_schedule.log") #ubicacion del log
         
         self.modelo = gp.Model("MIP_Scheduling")
-        self.datos = Datos(path = PATH_INPUT)
+        self.datos = Datos(path = path_datos)
         
         self.modelo.setParam("LogFile", self.path_log)
         self.modelo.setParam("NodefileDir",self.path_base)
@@ -543,7 +552,9 @@ class ModeloMIP:
                 , tiempo_checkpoint_segundos= 3600
             )
     
-    def guardar_variables(self):
+    def guardar_variables(self
+            , save : str = "variables.csv"
+        ):
         """
         guardar_variables - 
         
@@ -555,7 +566,7 @@ class ModeloMIP:
         ]
         
         df = pd.DataFrame(datos_variables, columns=['Variable', 'Value'])
-        df.to_csv(os.path.join(self.path_base,"variables.csv"), index=False)
+        df.to_csv(os.path.join(self.path_base,save), index=False)
     
     def debug_modelo(self):
         
@@ -707,9 +718,32 @@ class ModeloMIP:
 
         self.modelo.write(os.path.join(self.path_base, "model.lp"))
         self.modelo.write(os.path.join(self.path_base, "model.mps"))
-      
-def main():
-    ml = ModeloMIP()
+
+def optimize_model(
+        path_datos : str | None = None
+        , save : str = "variables.csv"
+    ):
+    """
+    optimize_model - 
+    
+    Ejecuta el modelo de programacion lineal
+    
+    Parameters
+    ----------
+    path_datos (str | None, optional, defaults to None) :
+        Ubicacion de los datos a procesar
+    
+    save (str) :
+        Nombre del archivo donde se guardara las variables.
+        Se guardará en un archivo .csv
+    """
+    
+    if path_datos is None:
+        path_datos = PATH_INPUT
+    
+    ml = ModeloMIP(
+        path_datos=path_datos
+    )
     
     #ml.debug_modelo()
     
@@ -717,8 +751,13 @@ def main():
     
     if ml.modelo.SolCount > 0:
         print("Objetivo final:", ml.modelo.ObjVal)
-        ml.guardar_variables()
+        ml.guardar_variables(
+            save = save
+        )
         print("Variables guardadas")
+    
+def main():
+    optimize_model()
 
 def zip_mip(
         base_dir : str | None = None

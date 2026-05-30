@@ -4,6 +4,7 @@ import numpy as np
 from typing import Any, Generator
 
 PATH_INPUT = os.path.join(os.path.dirname(os.path.realpath(__file__)),'Datos Tesina','Input_JSON_Schedule_Optimization.json')
+PATH_INPUT_TEST = os.path.join(os.path.dirname(os.path.realpath(__file__)),'Datos Tesina','Input_JSON_Schedule_Optimization test.json')
 
 def cargar_datos(archivo : str | os.PathLike) -> dict:
     """

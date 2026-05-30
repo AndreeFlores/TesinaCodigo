@@ -22,6 +22,7 @@ class Poblacion():
             , p_optimizacion_deterministica : float = 0.5
             , id_nombre : str = None
             , random_seed : int = None
+            , input_path : str = None
         ):
         """
         __init__ - 
@@ -101,6 +102,9 @@ class Poblacion():
             Si se escoge utilizar una semilla aleatoria inicial.
             Si None entonces no se asigna una semilla.
         
+        input_path (str, optional, defaults to None) :
+            Path donde se ubican los datos a procesar
+        
         Raises
         ------
         ValueError :
@@ -173,7 +177,10 @@ class Poblacion():
         inicio = time.time()
         
         self.individuos: list[IndividuoA] = [
-            IndividuoA(inicializar=True,kwargs_inicializar=self.params_inicializar) for _ in range(self.cantidad_individuos)
+            IndividuoA(inicializar=True
+                ,kwargs_inicializar=self.params_inicializar
+                ,input_path=input_path
+            ) for _ in range(self.cantidad_individuos)
         ]
         
         self.aptitudes = [[individuo.aptitud() for individuo in self.individuos]]
