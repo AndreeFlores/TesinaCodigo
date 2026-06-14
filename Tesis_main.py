@@ -46,13 +46,14 @@ def main():
                 print("Ejecutar prueba de modelo lineal")
                 optimize_model(
                     path_datos=PATH_INPUT_TEST
-                    ,  save="variables_test.csv"
+                    , save="variables_test.csv"
+                    , params_filename="params_test.json"
                 )
             case "6":
                 print("Ejecutar de modelo lineal")
                 optimize_model(
                     path_datos=PATH_INPUT
-                    ,  save="variables.csv"
+                    , save="variables.csv"
                 )
             case _:
                 print("Opción no válida, intenta de nuevo.")  

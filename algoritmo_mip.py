@@ -1,9 +1,10 @@
-from Carga_Datos import Datos, PATH_INPUT
+from Carga_Datos import Datos, PATH_INPUT, PATH_INPUT_TEST
 import numpy as np
 import glob
 import os
 from datetime import datetime
 import time
+from genetico.IndividuoA import IndividuoA
 
 import pandas as pd
 import gurobipy as gp
@@ -39,9 +40,9 @@ def save_json_params():
     with open(path_archivo, mode="w", encoding="utf-8") as archivo:
         json.dump(dict_json, archivo, indent=4)
 
-def load_json_params() -> dict:
+def load_json_params(nombre_archivo : str = "params.json") -> dict:
     path_base = os.path.join("Datos Tesina", "algoritmos mip")
-    path_archivo = os.path.join(path_base,"params.json")
+    path_archivo = os.path.join(path_base,nombre_archivo)
     
     with open(path_archivo, mode="r", encoding="utf-8") as archivo:
         dict_param = json.load(archivo)
@@ -174,7 +175,8 @@ class ModeloMIPCallback:
 class ModeloMIP:
     
     def __init__(self,
-            path_datos : str          
+            path_datos : str
+            , params_filename : str = "params.json"
         ):
         """
         Parameters
@@ -195,7 +197,7 @@ class ModeloMIP:
         self.modelo.setParam("LogFile", self.path_log)
         self.modelo.setParam("NodefileDir",self.path_base)
         
-        dict_params = load_json_params()
+        dict_params = load_json_params(nombre_archivo=params_filename)
         for k, v in dict_params.items():
             self.modelo.setParam(k, v)
         
@@ -722,6 +724,7 @@ class ModeloMIP:
 def optimize_model(
         path_datos : str | None = None
         , save : str = "variables.csv"
+        , params_filename : str = "params.json"
     ):
     """
     optimize_model - 
@@ -743,6 +746,7 @@ def optimize_model(
     
     ml = ModeloMIP(
         path_datos=path_datos
+        , params_filename=params_filename
     )
     
     #ml.debug_modelo()
@@ -845,8 +849,96 @@ def unzip_mip(
     with zipfile.ZipFile(os.path.join(base_dir, nombre_zip_log), "r") as file:
         file.extractall(base_dir)
 
+def mip_to_genetic_test(
+        path_datos : str = PATH_INPUT_TEST
+        , path_variables : str = os.path.join("Datos Tesina", "algoritmos mip","variables_test.csv")
+    ) -> IndividuoA:
+    """
+    mip_to_genetic_test - 
+    
+    Convierte el dataframe con las variables del modelo MIP al modelo genético.
+    
+    Solo funciona con los datos de prueba.
+    
+    Parameters
+    ----------
+    path_datos (str, optional, defaults to PATH_INPUT_TEST) :
+        Ubicacion de los datos
+    
+    path_variables (str, optional, defaults to os.path.join("Datos Tesina", "algoritmos mip","variables_test.csv")) :
+        Ubicacion del dataframe
+    
+    Returns
+    -------
+    IndividuoA :
+        Individuo del modelo genetico con las actividades cargadas del dataframe.
+    """
+
+    individuo = IndividuoA(
+        inicializar=False
+        , input_path=path_datos
+    )
+    
+    df = pd.read_csv(
+        path_variables
+    )
+
+    df_filtrado = df[
+        (df["Variable"].str.startswith("Prod"))
+        & (df["Value"] == 1)
+    ]
+    
+    df_filtrado[["Producto", "Demanda", "Paso", "Task", "Maquina", "Task_Mode", "Intervalo", "Periodo"]] = df_filtrado["Variable"].str.split(",",expand=True)
+
+    df_filtrado = df_filtrado[(df_filtrado["Intervalo"] == "0")]
+
+    df_filtrado["Producto"] = df_filtrado["Producto"].str.removeprefix("Prod[")
+    df_filtrado["Periodo"] = df_filtrado["Periodo"].str.removesuffix("]")
+
+    df_filtrado["Producto"] = df_filtrado["Producto"].str.replace("_"," ")
+    df_filtrado["Task_Mode"] = df_filtrado["Task_Mode"].str.replace("_"," ")
+
+    df_filtrado.replace(
+        {
+            "Anti Shrinkage TM2": "Anti-Shrinkage TM2"
+        }
+        , inplace=True
+    )
+
+    for idx, row in df_filtrado.iterrows():
+        periodo = int(row["Periodo"])
+        maquina = str(row["Maquina"])
+        producto = str(row["Producto"])
+        paso = int(row["Paso"])
+        demanda = int(row["Demanda"])
+        task_mode = str(row["Task_Mode"])
+        
+        #print(periodo,maquina,producto,paso,demanda,task_mode)
+        
+        agregado = individuo.agregar_task_mode(
+            maquina=maquina
+            , periodo=periodo+1
+            , producto=producto
+            , paso=paso
+            , demanda=demanda
+            , task_mode=task_mode
+        )
+        
+        #print(agregado[2])
+    
+    #print(individuo.cromosoma)
+    
+    path_base = os.path.join("Datos Tesina", "Pruebas", "Codigo_Modelos")
+    individuo.dataframe(
+        path_save=os.path.join(path_base,"prueba_lineal.csv")
+            , kwargs_to_csv={"index":False}
+    )
+    
+    return individuo
+
 if __name__ == "__main__":
     main()
     #save_json_params()
     #zip_mip()
+    #mip_to_genetic_test()
     

@@ -1,0 +1,8 @@
+{
+    "Threads": 8,
+    "NodefileStart": 0.5,
+    "ImproveStartNodes": 40,
+    "SoftMemLimit": 8,
+    "Presolve": 2,
+    "Seed": 0
+}

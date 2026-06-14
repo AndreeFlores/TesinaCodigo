@@ -654,7 +654,15 @@ def optimizacion_prueba():
         verbose=True
     )
     
+    path_base = os.path.join("Datos Tesina", "Pruebas", "Codigo_Modelos")
+    
     poblacion.guardar(path=os.path.join("Datos Tesina", "algoritmo genetico","Tesis"))
+    
+    individuo = poblacion.individuo_incumbente
+    individuo.dataframe(
+        path_save=os.path.join(path_base,"prueba_genetico.csv")
+            , kwargs_to_csv={"index":False}
+    )
     
     print("Terminado")
     
@@ -934,6 +942,60 @@ def figura_simulacion_mejores_parametros():
         , path_fig = os.path.join("Datos Tesina","Figuras_Tablas","7_1_2","aptitud_mejor.png")
     )
 
+def figura_prueba_codigo_modelos():
+    path_base = os.path.join(
+        "Datos Tesina","Pruebas","Codigo_Modelos"
+    )
+    path_base_figuras = os.path.join(
+        "Datos Tesina", "Figuras_Tablas", "6_4"
+    )
+    
+    genetico = IndividuoA(
+        inicializar=False
+        , saved_path=os.path.join(path_base,"prueba_genetico.csv")
+        , input_path=PATH_INPUT_TEST
+    )
+    
+    lineal = IndividuoA(
+        inicializar=False
+        , saved_path=os.path.join(path_base,"prueba_lineal.csv")
+        , input_path=PATH_INPUT_TEST
+    )
+    
+    genetico.grafica_gantt(
+        path_save_fig=os.path.join(path_base,"grafica_genetica_prueba.png")
+        , titulo="Ejemplo de prueba con Modelo Genético"
+        , kwargs_grafica={
+            "subtitulo" : ""
+        }
+        , kwargs_suptitle = {
+            "fontsize" : 24
+            , "fontweight" : "bold"
+        }
+        , kwargs_subtitle={
+            "fontsize" : 18
+        }
+        , x_ticks=[0,48/2,48]
+        , max_value_x=49
+    )
+    
+    lineal.grafica_gantt(
+        path_save_fig=os.path.join(path_base,"grafica_milp_prueba.png")
+        , titulo="Ejemplo de prueba con Modelo MILP"
+        , kwargs_grafica={
+            "subtitulo" : ""
+        }
+        , kwargs_suptitle = {
+            "fontsize" : 24
+            , "fontweight" : "bold"
+        }
+        , kwargs_subtitle={
+            "fontsize" : 18
+        }
+        , x_ticks=[0,48/2,48]
+        , max_value_x=49
+    )
+
 def main():
     #crear resultado de la tesis
     #unzip_grid_search()
@@ -943,7 +1005,8 @@ def main():
     
     #figura_muestra_mutacion_2()
     #figura_muestra_mutacion_3()
-    figura_simulacion_mejores_parametros()
+    #figura_simulacion_mejores_parametros()
+    figura_prueba_codigo_modelos()
     
 if __name__ == "__main__":
     main()

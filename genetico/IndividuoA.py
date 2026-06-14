@@ -1002,6 +1002,7 @@ class IndividuoA(IndividuoBase):
         """
         df = task_array_to_dataframe(
             array=self.cromosoma
+            , input_path= self.INPUT_PATH
         )
         
         if kwargs_to_csv is None:

@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from Carga_Datos import Datos, str_a_task_mode, task_mode_a_str
+from Carga_Datos import Datos, str_a_task_mode, task_mode_a_str, PATH_INPUT
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
@@ -95,9 +95,10 @@ def buscar_mejor_parametros() -> tuple[dict, str]:
 
 def task_array_to_dataframe(
         array : np.ndarray
+        , input_path : str = PATH_INPUT
     ) -> pd.DataFrame:
     
-    datos = Datos()
+    datos = Datos(path = input_path)
     
     machines_dict = datos.machines_id
     
